@@ -4,10 +4,11 @@ Last updated: 2026-07-26
 
 ## Goal
 
-A movie recommendation app with two ways in:
+A movie recommendation app with three ways in:
 
 1. **Browse** a visual catalog (Netflix/Prime-style hero + poster shelves) and rate films.
-2. **Ask** a chat agent for recommendations.
+2. **Search** by title, when you know what you're looking for.
+3. **Ask Kino**, the agent, when you don't — a mood, a constraint, or just "I can't decide".
 
 The defining constraint on the agent: it has four tools and **decides for itself** which to
 call, in what order, and how many times. There is no keyword matching, intent classifier, or
@@ -22,18 +23,21 @@ Everything below is working and was verified end-to-end, not assumed.
 
 | Area | State |
 |---|---|
-| Catalog | 499 movies synced from TMDB; `poster_path`/`backdrop_path` 100% populated |
-| Vectors | 499 embeddings in Pinecone index `cinema-brain-movies`, namespace `movies`, 1536-dim, cosine |
+| Catalog | **104,146** movies synced from TMDB by release year |
+| Vectors | **104,146** embeddings in Pinecone index `cinema-brain-movies`, namespace `movies`, 1536-dim, cosine. Postgres `embedded_at` count and Pinecone `recordCount` were compared directly and agree exactly; 0 pending |
 | Auth | Cookie-based Supabase Auth; sign in / sign up with confirm-password + show/hide toggles |
 | Profiles | `public.profiles` (1:1 with `auth.users`, created by trigger) + a public `avatars` bucket |
 | RLS | Verified: strangers see 0 ratings and 0 profiles, forged inserts/updates affect 0 rows |
-| Agent | 4 tools, model-driven, streams over SSE |
-| UI | Catalog home (hero + 4 shelves + star rating), poster → details dialog, profile page, chat as slide-out drawer |
-| Checks | `tsc`, `eslint`, and `next build` all clean; no browser console errors |
+| Agent | **Kino** — 4 tools, model-driven, streams over SSE |
+| Search | Title search over Postgres (trigram), as a centred overlay with infinite scroll, plus a `/search` page |
+| UI | Catalog home (auto-rotating hero carousel + 4 shelves + star rating), poster → details dialog, profile page, Kino as a centred chat window |
+| Checks | `tsc`, `eslint`, and `next build` all clean. The hero carousel was additionally driven in a real browser (autoplay, drag both ways, click-safety) — see *Verifying UI* |
 
 **Supabase project:** `lwuycdhoilckrxymjokq`
 **Chat model:** `gpt-5.5` (override with `CHAT_MODEL`; the account also lists `gpt-5.6-luna` /
 `-sol` / `-terra`, whose suffixes I could not identify — don't guess, check before switching)
+**Embedding cost, for planning:** the 63,553-film top-up ran 636 batches in 37.7 minutes for
+5,082,740 tokens of `text-embedding-3-small` — about $0.10. A full re-embed of 104k is ~$0.17.
 
 **Test user:** `test-user@cinema-brain.local` / `cinema-brain-test-password` — 6 seeded ratings
 (Inception 10, Arrival 9, EEAAO 9, The Substance 8, Scary Movie 4, Minions & Monsters 3).
@@ -57,7 +61,12 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `lib/movies/search.ts` — agent-facing queries (metadata, semantic, rating history). Its
   projection deliberately excludes image paths; the model shouldn't pay tokens for filenames.
 - `lib/movies/catalog.ts` — browse-facing queries (trending, top rated, genre, hero,
-  "because you rated X"). **Server-only** — reaches Pinecone via `search.ts`.
+  "because you rated X", `searchMoviesByTitle`). **Server-only** — reaches Pinecone via
+  `search.ts`. `getHeroMovie` is still exported but **no longer used** — the hero rotates
+  through trending now. Delete it or wire it back deliberately.
+- `lib/movies/search-config.ts` — `MIN_SEARCH_LENGTH` alone. Its own module for the same reason
+  `images.ts` exists: a client component importing a constant from `catalog.ts` would drag the
+  whole server data layer into the browser bundle.
 - `lib/movies/images.ts` — pure types + TMDB URL helpers. **The only movie module a client
   component may import.** See Failed attempts #4.
 - `lib/movies/sync.ts` · `lib/tmdb.ts` — TMDB ingestion.
@@ -65,9 +74,12 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
   the sync (which hashes it) and the embed job (which sends it), so they cannot drift.
 - `lib/movies/embeddings.ts` · `lib/embeddings/openai.ts` · `lib/pinecone.ts` — embedding pipeline.
 
-**Agent**
-- `lib/agent/chat.ts` — `streamChat` (async generator: `tool_call` / `text_delta` / `done`) and
-  `runChat` wrapping it, so there is exactly one tool loop.
+**Agent — Kino**
+- `lib/agent/chat.ts` — the system prompt (his name, voice, and the catalog size), plus
+  `streamChat` (async generator: `tool_call` / `text_delta` / `done`) and `runChat` wrapping it,
+  so there is exactly one tool loop. **The catalog size is stated in that prompt** — it said
+  "about 500 titles" long after the catalog passed 100k, which made him declare real films
+  absent. Update it whenever the catalog changes size.
 - `lib/agent/tools.ts` — the four tools and their descriptions.
 - `lib/agent/tool-kit.ts` — provider-neutral `defineTool`; JSON Schema derived from the Zod schema.
 - `app/api/chat/route.ts` — SSE endpoint; cookie auth with a bearer fallback for the CLI.
@@ -79,14 +91,22 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `lib/supabase/admin.ts` — **bypasses RLS**; back-office jobs only.
 
 **UI**
-- `app/page.tsx` — catalog: hero + 4 shelves. `app/profile/page.tsx` — profile + taste stats.
-  `app/login/page.tsx` — auth.
-- `app/components/app-shell.tsx` — header + both providers; every signed-in page mounts it.
-- `app/components/` — `site-header`, `avatar`, `avatar-uploader`, `display-name-form`, `hero`,
-  `carousel-row`, `poster-card`, `movie-details`, `star-rating`, `chat-drawer`.
+- `app/page.tsx` — catalog: hero carousel + 4 shelves. `app/profile/page.tsx` — profile + taste
+  stats. `app/login/page.tsx` — auth. `app/search/page.tsx` — the full search page.
+- `app/components/app-shell.tsx` — header + all providers; every signed-in page mounts it.
+- `app/components/` — `site-header`, `avatar`, `profile-identity`, `hero`, `carousel-row`,
+  `poster-card`, `movie-details`, `star-rating`, `chat-overlay`, `kino-avatar`,
+  `search-overlay`, `search-field`.
+- `app/components/hero.tsx` — **client** component. Auto-rotating carousel over the top 6
+  trending films that have a backdrop, 7s dwell, crossfaded (all backdrops stacked, only the
+  first `priority`). Pauses on hover, focus and drag; `prefers-reduced-motion` disables autoplay
+  entirely. Drag is *measured, not tracked* — it commits on release past 60px, which is why the
+  whole surface can be draggable without stealing clicks from the buttons on top of it.
+  It deliberately does **not** skip films you've rated; your score rides along on the stars.
 - `lib/profiles/` — `avatar.ts` (pure URL + initials helpers, **client-safe**), `queries.ts`
   (server reads), `stats.ts` (pure derivations over already-fetched ratings).
-- `app/chat-panel.tsx` — `ChatConversation`, mounted inside the drawer.
+- `app/chat-panel.tsx` — `ChatConversation`, the whole chat window: header, transcript, composer.
+  Mounted inside `chat-overlay.tsx`, which owns the scrim, the centring and the summon button.
 - `app/actions/rate-movie.ts` · `app/actions/profile.ts` — the app's mutations.
 - `proxy.ts` — session refresh + route gating. **Not `middleware.ts`** — renamed in Next 16.
 - `app/globals.css` — design tokens (ink / bone / lamp), type roles (`.label` / `.meta`),
@@ -156,6 +176,52 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     decoration — posters travelling behind a fully transparent fixed bar collide with the
     wordmark, which is what the screenshots showed. There is no `border-b` in either state.
 
+14. **Catalog grown to 104k and fully embedded** — synced year by year, then `embed:movies`
+    topped up the 63,553 pending. Both stores verified equal afterwards rather than assumed.
+15. **Title search** (`searchMoviesByTitle`, `app/api/search/`, `search-overlay`, `/search`) —
+    Postgres and the `movies_title_trgm_idx` trigram index, not vectors: at this size a search
+    box is asked "do you have this film", which is a lookup. Describing a film you can't name is
+    what Kino's semantic tool is for. Results come back by popularity and are re-ranked into
+    exact / starts-with / contains tiers, because popularity alone puts *Her* fifth behind
+    *Hereditary* and *Hercules*.
+    The overlay pages as you scroll (12 a page) instead of capping with a link. Paging orders by
+    **`(popularity desc, id asc)`** — popularity ties are common and Postgres promises nothing
+    about their order between queries, so without a unique tiebreak two windows repeat one film
+    and drop another. Offsets are capped at 480, since `OFFSET` walks every row it skips.
+16. **The agent became Kino** — a named film programmer with a voice, a face
+    (`public/kino.png`, 1254px RGBA), and his own accent `--color-kino: #90fce7` sampled from
+    the mint of his eyes. Lamp gold stays the *app's* primary action; mint and the cream
+    `#fbeede` of `.btn-kino` are his alone, which is how his entry points read as his without
+    repainting the site. Chat moved from a right-hand drawer to a centred window with a header,
+    bubbles for you, plain prose for him, and the composer at the bottom.
+17. **The consultation rail was removed from the UI.** Tool-call events still stream over SSE and
+    `toolCalls` is still tracked in component state — only the display is gone, so restoring it
+    is a UI change, not a rebuild. Worth knowing this was deliberate: it was the app's main
+    window into the model choosing its own tools, and it was cut because it read as Kino
+    narrating his process.
+
+## Verifying UI
+
+There is a working browser loop, and it should be used before claiming any visual change works.
+Most of the UI in this session was shipped on `tsc`/`eslint`/`next build` alone, which catches
+nothing about whether a thing looks right — several rounds were spent guessing.
+
+```ts
+import { chromium } from "playwright";
+const browser = await chromium.launch({
+  // Playwright 1.62 wants a revision that isn't cached; point at what is.
+  executablePath: "/home/karl/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
+});
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.route("**/auth/v1/signup", (r) => r.abort()); // never spend a real confirmation email
+await page.goto("http://localhost:3000/login");
+// test-user@cinema-brain.local / cinema-brain-test-password
+```
+
+`deviceScaleFactor: 4` plus `locator.screenshot()` gives a close-up worth actually judging.
+`evaluateAll` with `getBoundingClientRect` / `getComputedStyle` settles "are these the same
+size" and "is there a border" as facts instead of opinions.
+
 ## Failed attempts
 
 Recorded so they aren't repeated.
@@ -204,6 +270,34 @@ Recorded so they aren't repeated.
     now writes to a `.new` file and only moves it on success. The generator also does not emit the
     hand-written aliases at the bottom of that file (`MovieRow`, `MovieInsert`, …) — re-add them
     after regenerating, as the comment there says.
+15. **`globals.css` is unlayered, so it beats every Tailwind utility** — not by specificity, but
+    because unlayered CSS always wins over anything in `@layer utilities`. This is the same
+    property `.page-container` relies on deliberately (#12), and it bites in the other direction:
+    `focus:outline-none` on the chat composer did **nothing** against the global
+    `:focus-visible { outline: 2px solid var(--color-lamp) }`. The fix has to be another unlayered
+    rule (`.composer-input:focus-visible`). Assume any `.btn`/`.label`/`.meta`/`.overlay-card`
+    property cannot be overridden by a utility class.
+16. **Running `next build` while `next dev` is live.** Both write `.next`, and the dev server
+    starts serving stale or mixed output — which looked exactly like a CSS change not applying and
+    cost a round of debugging a bug that wasn't there. Stop the dev server first, or accept that
+    what the browser shows may not be what the source says. Related to #13.
+17. **Flexbox `align-items: stretch` distorted Kino's face.** His avatar sat in a
+    `flex gap-3.5` row with no `items-*`, so the `<img>` stretched to the full height of a long
+    reply — the longer he talked, the more his face smeared. `shrink-0` doesn't help; it only
+    guards the main axis. `items-start` on the row (or `self-start` on the image) is the fix.
+18. **Ran `npx prettier --write` on a file out of habit.** Prettier is not a dependency here and
+    there is no config, so it reflowed the whole file to its 80-column default against a codebase
+    written at ~90, burying one real change in a file-wide diff. This project has no formatter;
+    match the surrounding style by hand.
+19. **`Math.random()` during render is a hydration mismatch** — the same class of bug as #8. The
+    chat panel's randomised suggestion chips get away with it *only* because that panel never
+    server-renders: it mounts on click from an overlay whose state starts closed. That constraint
+    is written above the code; it stops being true the moment `ChatConversation` is rendered on a
+    page directly.
+20. **Checked a background job's PID and wrongly declared it dead.** `npx tsx script.ts` launched
+    with `setsid nohup` leaves the recorded `$!` as a short-lived wrapper; the actual work is a
+    grandchild. `ps -p <wrapper>` says "not running" while the job is fine. Use
+    `pgrep -af <script-name>`, or check the job's real output.
 
 ## Next steps
 
@@ -215,9 +309,14 @@ Recorded so they aren't repeated.
 **Known small defects**
 - `getBecauseYouRated` calls `getRatingsByMovie` internally and `app/page.tsx` calls it again — one
   redundant query per page load.
-- The floating "Help me decide" button can overlap content at some scroll positions — a poster on
-  the catalog, a genre bar on the profile. Inherent to a fixed trigger; it wants a real answer
-  (dock it into the header, or hide it while scrolling) rather than more padding.
+- `/search` is effectively unlinked. The page and its `SearchField` work, but nothing in the UI
+  points at it any more — the overlay's "See all results" footer was removed in favour of
+  infinite scroll. Decide whether it stays as a linkable/shareable result set or goes.
+- The chat transcript runs the full 920px panel width, so Kino's prose lines are ~110 characters,
+  past the ~70 where the eye starts losing its place. Capping the *assistant* prose alone while
+  leaving your bubbles and the composer full-bleed is the fix if it reads as a wall.
+- The hero stacks all 6 backdrops in the DOM to crossfade them. That's what makes the transition
+  smooth, but it is 6 full-width images on the home page; only the first is `priority`.
 - The Supabase CLI isn't installed, so `npm run db:types` needs `npx` to fetch it (the script now
   does). Types can also be regenerated through the Supabase MCP.
 - `StarRating` seeds its state from a prop, so the copy in the details dialog and the copy on the
@@ -225,16 +324,23 @@ Recorded so they aren't repeated.
   writes correctly.
 
 **Worth doing next**
-- **"More like this" in the details dialog** — the vector index is right there, and it's the
-  obvious next move once someone has opened a film.
-- **Give the chat drawer page context** so "help me decide" knows what you were looking at; only the
-  hero passes a seeded question today.
+- **Hear Kino.** His voice and the "never describe your own process" rule were written but never
+  listened to — no chat turn has been run since. `npm run chat -- "..."` is the fastest check.
+- **"More like this" in the details dialog** — the vector index now covers all 104k films, so
+  this is a much better feature than it was at 499. Still the obvious next move once someone has
+  opened a film.
+- **Give the chat panel page context** so "help me decide" knows what you were looking at; only
+  the hero passes a seeded question today.
 - **Prompt caching / trimming** for chat cost — a personalized turn resends ~11–13k input tokens,
-  mostly tool results replayed each iteration.
-- **Grow the catalog**: `npm run sync:movies -- --pages=50 --start-page=26`, then
-  `npm run embed:movies`. Both are idempotent and safe to re-run.
+  mostly tool results replayed each iteration. Worth more now the catalog is 200× bigger.
+- **Semantic quality at 104k.** Every tool that searches by meaning is now drawing on the whole
+  catalog rather than a curated 499. Nobody has looked at whether the results got better or just
+  noisier — that is an open question, not a known win.
 - **Tests.** There are none. The highest-value targets are the RLS boundary, the embedding-hash
-  invalidation, and the SSE frame parser.
+  invalidation, the SSE frame parser, and now the search paging window (a `(popularity, id)`
+  regression would silently duplicate and drop rows).
 - `npm audit` reports 12 high-severity advisories, all inherited from the `create-next-app` scaffold
   (eslint / postcss / sharp), none from the libraries added here.
-- `playwright` is a devDependency added for UI verification — keep it or drop it deliberately.
+- `playwright` is a devDependency and now earns its place — see *Verifying UI*.
+- `public/kino.png` is 1MB at 1254px and is displayed at 24–88px. `next/image` resizes what it
+  serves, so this is repo weight rather than page weight, but it could be a fraction of the size.
