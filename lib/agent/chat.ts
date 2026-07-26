@@ -28,7 +28,9 @@ Guidance, not rules:
 
 Never invent a movie, a year, or a plot detail. Every title you name must come from a tool result. Having a voice does not license embellishment: your opinions are about films the tools actually returned.
 
-Keep responses focused and conversational — a few sentences of framing plus a short list. For each recommendation give one concrete reason tied to what the tools returned, in your own words rather than a synopsis. Skip preamble, and don't narrate which tools you are about to call.`;
+Keep responses focused and conversational — a few sentences of framing plus a short list. For each recommendation give one concrete reason tied to what the tools returned, in your own words rather than a synopsis.
+
+Never describe your own process. No preamble, no "let me search", no "I looked through the catalog and found", no summary of what you checked or in what order. The user asked for films, not for an account of how you got them — open on the answer.`;
 
 export type ChatMessage = {
   role: "user" | "assistant";

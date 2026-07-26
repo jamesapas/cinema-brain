@@ -3,57 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
-import { KinoMark } from "@/app/components/kino-mark";
+import { Icon } from "@iconify/react";
+
+import { KinoAvatar } from "@/app/components/kino-avatar";
 import type { ChatEvent, ToolCallTrace } from "@/lib/agent/chat";
-
-/**
- * Human-readable names for the tools. The rail is user-facing, so it names what
- * the agent consulted, not the function it called.
- */
-const TOOL_LABELS: Record<string, string> = {
-  search_movies_by_metadata: "by metadata",
-  search_movies_by_meaning: "by meaning",
-  get_my_rating_history: "your ratings",
-  combine_and_rank_results: "merge & rank",
-};
-
-function truncate(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1).trimEnd()}…` : value;
-}
-
-/** One short line describing what the agent actually asked for. */
-function summarize(name: string, input: unknown): string | null {
-  const args = (input ?? {}) as Record<string, unknown>;
-
-  if (name === "search_movies_by_meaning") {
-    return typeof args.query === "string" ? truncate(args.query, 70) : null;
-  }
-
-  if (name === "search_movies_by_metadata") {
-    const parts: string[] = [];
-    if (Array.isArray(args.genres) && args.genres.length > 0) {
-      parts.push(args.genres.join(", "));
-    }
-    if (typeof args.title_contains === "string") parts.push(`“${args.title_contains}”`);
-    if (args.year_from || args.year_to) {
-      parts.push(`${args.year_from ?? "…"}–${args.year_to ?? "…"}`);
-    }
-    if (typeof args.min_rating === "number") parts.push(`rated ${args.min_rating}+`);
-    if (typeof args.sort_by === "string") parts.push(`by ${args.sort_by}`);
-    return parts.length > 0 ? truncate(parts.join(" · "), 70) : null;
-  }
-
-  if (name === "combine_and_rank_results") {
-    const count = Array.isArray(args.candidates) ? args.candidates.length : 0;
-    return `${count} candidate${count === 1 ? "" : "s"}`;
-  }
-
-  if (name === "get_my_rating_history") {
-    return typeof args.min_rating === "number" ? `rated ${args.min_rating}+` : "all ratings";
-  }
-
-  return null;
-}
 
 type Turn =
   | { role: "user"; content: string }
@@ -65,16 +18,43 @@ type Turn =
       error?: string;
     };
 
-const EXAMPLE_PROMPTS = [
+/**
+ * The pool the opening chips are drawn from. Deliberately spread across the
+ * kinds of request Kino handles — a mood, a hard constraint, a lean on your
+ * ratings, an outright shrug — so whichever three come up, they suggest the
+ * range rather than one narrow way in.
+ */
+const SUGGESTIONS = [
   "What should I watch tonight?",
   "Something bittersweet about memory",
   "A comedy under 100 minutes",
+  "Surprise me",
+  "Something based on what I've rated",
+  "A film I've probably never heard of",
+  "Something to watch with my parents",
+  "The best thing here from the 80s",
+  "Something short and strange",
+  "A rewatch I've forgotten about",
+  "Something beautiful with barely a plot",
+  "I can't face subtitles tonight",
 ];
 
+/** How many chips the empty state offers. */
+const SUGGESTION_COUNT = 3;
+
+/** Fisher-Yates over a copy, so the pool itself is never reordered. */
+function pickRandom<T>(pool: readonly T[], count: number): T[] {
+  const copy = [...pool];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, count);
+}
+
 /**
- * The conversation, rendered as the overlay's two cards: you ask in the bar on
- * top, Kino answers in the card beneath. It returns a fragment rather than a
- * wrapper so the panel above owns the stacking and the gap.
+ * The conversation: a header with Kino in it, the transcript, and the
+ * composer at the bottom — one window, the way a chat is read.
  */
 export function ChatConversation({
   seedPrompt,
@@ -88,6 +68,16 @@ export function ChatConversation({
   const [streaming, setStreaming] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  /**
+   * Chosen once per opening, so the chips never move between deciding to click
+   * one and clicking it.
+   *
+   * Picking during render is safe only because this panel never renders on the
+   * server — it mounts on click, from an overlay that starts closed. Random
+   * values in server-rendered markup are a hydration mismatch.
+   */
+  const [suggestions] = useState(() => pickRandom(SUGGESTIONS, SUGGESTION_COUNT));
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -213,158 +203,138 @@ export function ChatConversation({
   }
 
   return (
-    <>
-      {/* The bar you ask from. Kino's mark sits where search puts its
-          magnifier, so the two panels open the same way. */}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(draft);
-        }}
-        className="overlay-card flex shrink-0 items-end gap-3 px-4 py-3"
-      >
-        <KinoMark size={22} className="mb-1.5 shrink-0 text-lamp" />
-        <textarea
-          ref={inputRef}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send(draft);
-            }
-          }}
-          rows={1}
-          placeholder="Ask Kino for a film…"
-          aria-label="Ask Kino for a film"
-          disabled={streaming}
-          className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent py-1.5 font-prose text-bone placeholder:text-bone-dim/60 focus:outline-none disabled:opacity-50"
-        />
+    <div className="overlay-card overlay-card-chat flex h-[84vh] max-h-full flex-col">
+      <header className="flex shrink-0 items-center gap-3 border-b border-ink-line px-5 py-3.5">
+        <KinoAvatar size={34} />
+        <span className="flex-1 text-base font-semibold text-bone">Kino</span>
         <button
-          type="submit"
-          disabled={streaming || draft.trim().length === 0}
-          className="btn btn-quiet mb-0.5 shrink-0 px-4 py-2"
+          type="button"
+          onClick={onClose}
+          aria-label="Close chat"
+          className="grid h-9 w-9 place-items-center rounded-full text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone"
         >
-          {streaming ? "Working…" : "Ask"}
+          <Icon icon="lucide:x" width={20} height={20} aria-hidden />
         </button>
-      </form>
+      </header>
 
-      <div className="overlay-card flex max-h-[70vh] min-h-0 flex-col">
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-ink-line px-4 py-2.5">
-          <span className="label">Kino</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="meta transition-colors hover:text-bone"
-          >
-            Close
-          </button>
-        </header>
-
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          {turns.length === 0 ? (
-            <div>
-              <p className="font-prose leading-relaxed text-bone-soft">
-                Ask for something specific — a mood, a constraint, or just what to watch.
-                Answers come from the catalog and your ratings.
-              </p>
-              <p className="label mt-6">Try</p>
-              <ul className="mt-2 flex flex-col items-start gap-2">
-                {EXAMPLE_PROMPTS.map((prompt) => (
-                  <li key={prompt}>
-                    <button
-                      type="button"
-                      onClick={() => void send(prompt)}
-                      className="text-left font-prose text-bone-soft underline decoration-ink-line underline-offset-4 transition-colors hover:text-bone hover:decoration-lamp"
-                    >
-                      {prompt}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-          <div className="flex flex-col gap-8">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-8">
+        {turns.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center px-2 text-center">
+            <KinoAvatar size={88} />
+            <p className="mt-5 font-prose text-xl text-bone">What are we watching?</p>
+            <ul className="mt-6 flex flex-wrap justify-center gap-2">
+              {suggestions.map((prompt) => (
+                <li key={prompt}>
+                  <button
+                    type="button"
+                    onClick={() => void send(prompt)}
+                    className="rounded-full border border-ink-line px-4 py-2 font-prose text-sm text-bone-soft transition-colors hover:border-kino/50 hover:text-bone"
+                  >
+                    {prompt}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-7">
             {turns.map((turn, index) =>
               turn.role === "user" ? (
-                <article key={index}>
-                  <p className="label">You</p>
-                  <p className="mt-1.5 font-prose leading-relaxed text-bone">
+                <article key={index} className="flex justify-end">
+                  <p className="max-w-[85%] rounded-2xl bg-bone/10 px-4 py-3 font-prose text-[0.9375rem] leading-relaxed text-bone">
                     {turn.content}
                   </p>
                 </article>
               ) : (
-                <article key={index}>
-                  <p className="label flex items-center gap-1.5 text-lamp">
-                    <KinoMark size={13} className="shrink-0" />
-                    Kino
-                  </p>
+                // items-start, or the row's default stretch pulls the avatar to
+                // the full height of a long reply and distorts his face.
+                <article key={index} className="flex items-start gap-3.5">
+                  <KinoAvatar size={30} className="mt-0.5" />
 
-                  {turn.content ? (
-                    <div className="prose-notes mt-2 font-prose text-sm text-bone-soft">
-                      <Markdown>{turn.content}</Markdown>
-                      {turn.streaming && <span className="caret" aria-hidden />}
-                    </div>
-                  ) : turn.streaming && !turn.error ? (
-                    <p className="mt-2 font-mono text-xs text-bone-dim">
-                      {turn.toolCalls.length === 0
-                        ? "Reading your question…"
-                        : "Consulting the catalog…"}
-                      <span className="caret" aria-hidden />
-                    </p>
-                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    {turn.content ? (
+                      // No bubble on his side: a long recommendation is prose,
+                      // and prose in a balloon is harder to read than prose.
+                      <div className="prose-notes font-prose text-[0.9375rem] leading-relaxed text-bone-soft">
+                        <Markdown>{turn.content}</Markdown>
+                        {turn.streaming && <span className="caret" aria-hidden />}
+                      </div>
+                    ) : turn.streaming && !turn.error ? (
+                      <p
+                        className="inline-flex items-center gap-1.5 py-2"
+                        aria-label={
+                          turn.toolCalls.length === 0
+                            ? "Reading your question"
+                            : "Consulting the catalog"
+                        }
+                      >
+                        <span className="typing-dot h-2 w-2 rounded-full bg-kino/70" />
+                        <span className="typing-dot h-2 w-2 rounded-full bg-kino/70" />
+                        <span className="typing-dot h-2 w-2 rounded-full bg-kino/70" />
+                      </p>
+                    ) : null}
 
-                  {turn.error && (
-                    <p
-                      role="alert"
-                      className="mt-2 border-l-2 border-lamp pl-3 font-mono text-xs leading-relaxed text-lamp"
-                    >
-                      {turn.error} — try asking again.
-                    </p>
-                  )}
+                    {turn.error && (
+                      <p
+                        role="alert"
+                        className="mt-2 rounded-xl border border-lamp/40 px-4 py-3 font-prose text-sm leading-relaxed text-lamp"
+                      >
+                        {turn.error} — try asking again.
+                      </p>
+                    )}
 
-                  {turn.toolCalls.length > 0 && (
-                    <div className="mt-4 border-t border-ink-line pt-3">
-                      <p className="label">Consulted</p>
-                      <ol className="mt-2 flex flex-col gap-2">
-                        {turn.toolCalls.map((call, callIndex) => {
-                          const detail = summarize(call.name, call.input);
-                          return (
-                            <li
-                              key={`${call.iteration}-${call.name}-${callIndex}`}
-                              className="rail-entry flex gap-2.5"
-                            >
-                              {/* Iteration number: which round of the tool loop. */}
-                              <span
-                                className="font-mono text-[0.625rem] leading-5 text-lamp"
-                                aria-label={`Round ${call.iteration}`}
-                              >
-                                {String(call.iteration).padStart(2, "0")}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block font-mono text-[0.6875rem] leading-5 text-bone">
-                                  {TOOL_LABELS[call.name] ?? call.name}
-                                </span>
-                                {detail && (
-                                  <span className="mt-0.5 block font-prose text-xs leading-snug text-bone-dim">
-                                    {detail}
-                                  </span>
-                                )}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ol>
-                    </div>
-                  )}
+                  </div>
                 </article>
               ),
             )}
-              <div ref={endRef} />
-            </div>
-          )}
-        </div>
+            <div ref={endRef} />
+          </div>
+        )}
       </div>
-    </>
+
+      {/*
+        Composer at the bottom, full width. Three nested corners, each the one
+        outside it minus its own inset: panel 1.5rem, composer 1rem at 0.5rem
+        in, send button 0.5rem at 0.5rem in. Change any inset and the radius
+        below it has to move too.
+      */}
+      <div className="shrink-0 px-2 pt-1 pb-2">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send(draft);
+          }}
+          className="flex w-full items-end gap-2 rounded-2xl border border-ink-line bg-bone/6 py-2 pr-2 pl-5 transition-colors focus-within:border-kino/40"
+        >
+          <textarea
+            ref={inputRef}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                void send(draft);
+              }
+            }}
+            rows={1}
+            placeholder="Message Kino"
+            aria-label="Message Kino"
+            disabled={streaming}
+            className="composer-input max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent py-2.5 font-prose text-[0.9375rem] leading-relaxed text-bone placeholder:text-bone-dim/60 disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={streaming || draft.trim().length === 0}
+            aria-label="Send"
+            // 0.5rem: the composer's 1rem corner minus the 0.5rem of padding
+            // around this button, so the two curves nest the same way the
+            // composer nests inside the panel.
+            className="kino-focus grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-kino text-ink transition-opacity hover:opacity-90 disabled:opacity-25"
+          >
+            <Icon icon="lucide:arrow-up" width={20} height={20} aria-hidden />
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

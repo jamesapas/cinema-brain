@@ -1,16 +1,18 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 
 import { ChatConversation } from "@/app/chat-panel";
-import { KinoMark } from "@/app/components/kino-mark";
+import { KinoAvatar } from "@/app/components/kino-avatar";
 
 /**
  * Kino, summoned over whatever you were looking at.
  *
- * A centred panel rather than the old right-hand drawer, and built from the
- * same two cards as the search overlay: you ask at the top, the answer opens
- * beneath. Both are things you call up and dismiss, so they share one shape.
+ * A centred panel rather than the old right-hand drawer. It deliberately does
+ * NOT copy the search overlay's two-card shape: search is a lookup you scan
+ * and leave, chat is someone you talk to. So this is one window with a face
+ * at the top, a transcript in the middle, and the composer at the bottom —
+ * the layout everyone already knows how to read.
  *
  * The context exists so anything on the page — a hero, a poster — can open it
  * with a question already in the box.
@@ -79,7 +81,9 @@ export function ChatOverlayProvider({ children }: { children: React.ReactNode })
             role="dialog"
             aria-modal="true"
             aria-label="Ask Kino"
-            className="palette-in relative flex max-h-full w-full max-w-[620px] flex-col gap-2"
+            // sheet-in, not search's palette-in: it rises rather than drops, so
+            // the two panels don't arrive the same way.
+            className="sheet-in relative flex max-h-full w-full max-w-[920px] flex-col"
           >
             <ChatConversation seedPrompt={seedPrompt} onClose={() => setIsOpen(false)} />
           </div>
@@ -90,62 +94,31 @@ export function ChatOverlayProvider({ children }: { children: React.ReactNode })
 }
 
 /**
- * The floating summon.
+ * The floating summon: Kino's face, sitting still.
  *
- * A disc holding Kino's mark that opens into a labelled pill on hover or
- * focus, so it states what it is without occupying a pill's worth of the page
- * at rest. It also retracts to the bare disc while the page is scrolling: a
- * fixed trigger otherwise sits on top of a poster or a chart at some scroll
- * positions, and shrinking out of the way is the honest fix rather than more
- * padding under the content.
+ * It has lost, in order, a label that unrolled on hover, a mint ring, and a
+ * permanent pulse — each of which was a thing happening in the corner of your
+ * eye while you were trying to read the page. A recognisable face at a fixed
+ * size is enough to be found, and everything else was the button talking over
+ * the content it floats above.
+ *
+ * The fixed size is also what let the scroll listener go: the old wide trigger
+ * had to retract while scrolling because it lay across posters. A disc doesn't.
  */
 function SummonButton({ onClick, hidden }: { onClick: () => void; hidden: boolean }) {
-  const [scrolling, setScrolling] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    function onScroll() {
-      setScrolling(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      // Settle delay: long enough that a flick doesn't flicker the label back
-      // mid-gesture, short enough that it returns as soon as you stop.
-      timerRef.current = setTimeout(() => setScrolling(false), 400);
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label="Ask Kino"
-      // `group` drives the label; `hidden` state is opacity + pointer-events
-      // rather than unmounting, so the mark fades instead of popping.
-      className={`group fixed right-5 bottom-5 z-30 flex items-center gap-2.5 rounded-full border border-lamp/35 bg-ink-raised/95 py-3 pl-3.5 text-lamp shadow-lg backdrop-blur-sm transition-all duration-200 hover:border-lamp/70 hover:bg-ink-raised focus-visible:border-lamp/70 focus-visible:outline-none ${
-        scrolling ? "pr-3.5" : "pr-3.5 hover:pr-5 focus-visible:pr-5"
-      } ${hidden ? "pointer-events-none translate-y-3 opacity-0" : "opacity-100"}`}
+      // The edge is neutral now, not mint: a coloured ring around a coloured
+      // face was two things asking for attention where one would do. What's
+      // left is a faint halo, and it blooms only under the cursor.
+      className={`kino-summon kino-focus fixed right-6 bottom-6 z-30 grid h-16 w-16 place-items-center rounded-full border border-ink-line bg-ink-raised/95 backdrop-blur-sm ${
+        hidden ? "pointer-events-none scale-90 opacity-0" : "opacity-100"
+      }`}
     >
-      <KinoMark size={22} className="shrink-0" />
-
-      {/*
-        Width, not display: a label that unmounts makes the disc jump. Animating
-        max-width from 0 lets it unroll, and whitespace-nowrap keeps the words
-        on one line while there is not yet room for them.
-      */}
-      <span
-        className={`overflow-hidden text-sm font-semibold whitespace-nowrap transition-all duration-200 ${
-          scrolling
-            ? "max-w-0 opacity-0"
-            : "max-w-0 opacity-0 group-hover:max-w-32 group-hover:opacity-100 group-focus-visible:max-w-32 group-focus-visible:opacity-100"
-        }`}
-      >
-        Ask Kino
-      </span>
+      <KinoAvatar size={46} />
     </button>
   );
 }
@@ -158,10 +131,22 @@ export function AskAgentButton({ prompt, label }: { prompt: string; label: strin
   const { open } = useChatOverlay();
 
   return (
-    <button type="button" onClick={() => open(prompt)} className="btn btn-primary">
+    <button type="button" onClick={() => open(prompt)} className="btn btn-kino">
+      <KinoFaceChip />
       {label}
     </button>
   );
+}
+
+/**
+ * His face, bare on the button.
+ *
+ * No disc behind it: his outline and screen are dark enough to hold their own
+ * against cream, and the plate was reading as a second shape inside a shape.
+ * Slightly larger than it was to compensate for losing that frame.
+ */
+function KinoFaceChip() {
+  return <KinoAvatar size={24} className="-my-0.5" />;
 }
 
 /**
@@ -186,9 +171,10 @@ export function AskAboutButton({
         open(`Should I watch ${title} tonight?`);
         onOpened?.();
       }}
-      className="btn btn-primary"
+      className="btn btn-kino"
     >
-      Ask Kino about this
+      <KinoFaceChip />
+      Ask Kino
     </button>
   );
 }

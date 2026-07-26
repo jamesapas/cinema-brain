@@ -57,9 +57,19 @@ export function Hero({ movie, rating }: { movie: MovieCard; rating: number | nul
               rating anything in a shelf, so it shouldn't look like a different
               control. The group carries its own accessible name, so it needs
               no visible "Your rating" heading. */}
-          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-4">
-            <AskAboutButton title={movie.title} />
-            <MoreInfoButton movie={movie} rating={rating} />
+          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-5">
+            {/*
+              inline-grid with two equal fractions: the pair sizes to whichever
+              label is longer and both then match it, so "Ask Kino" and "More
+              info" read as one control group rather than two buttons that
+              happen to sit together. w-full lets each fill the cell it was
+              given, since .btn is inline-flex and would otherwise shrink back
+              to its own text.
+            */}
+            <div className="inline-grid grid-cols-2 gap-3 items-stretch [&>button]:w-full">
+              <AskAboutButton title={movie.title} />
+              <MoreInfoButton movie={movie} rating={rating} />
+            </div>
             <StarRating movieId={movie.id} rating={rating} size="lg" />
           </div>
         </div>

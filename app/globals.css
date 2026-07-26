@@ -21,6 +21,10 @@
   --color-bone-soft: #d0c9bb;
   --color-bone-dim: #9f998c;
   --color-lamp: #e8b84b;
+  /* Kino's own accent, sampled from his face: the mint his eyes and mouth
+     glow. Gold is the app's; this is his, and it is the only place it is
+     used, so he stays a character rather than another button. */
+  --color-kino: #90fce7;
 
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-prose: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -124,7 +128,7 @@ button:disabled {
   justify-content: center;
   gap: 0.5rem;
   border-radius: 0.375rem;
-  padding: 0.625rem 1.125rem;
+  padding: 0.640rem 1.125rem;
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 600;
@@ -150,10 +154,40 @@ button:disabled {
   background-color: #f3cb6e;
 }
 
+/*
+ * Kino's own call to action.
+ *
+ * Cream, not the app's lamp gold. Gold is the site's primary action, so
+ * spending it here made "ask him about this film" look like the same kind of
+ * thing as "rate this film" — and repainting gold to suit him would have
+ * repainted every button in the app. This is the cream sampled off his shell,
+ * used nowhere else, so his entry points are recognisably his and nothing
+ * else moves.
+ *
+ * Padding stays symmetrical, inherited from .btn. An earlier version trimmed
+ * the left for the face on the theory that it was a leading icon — but .btn
+ * centres its contents, so uneven padding only pushed the whole group off
+ * centre rather than balancing it.
+ */
+.btn-kino {
+  background-color: #fbeede;
+  color: var(--color-ink);
+}
+
+.btn-kino:hover:not(:disabled) {
+  background-color: #ffffff;
+}
+
+/*
+ * The edge is drawn in the button's own bone, not ink-line. Against this
+ * near-black stock an ink-line border is effectively invisible, so the button
+ * had no defined shape and read as weaker than a filled one beside it — a
+ * difference in presence, where only a difference in weight was intended.
+ */
 .btn-quiet {
   background-color: color-mix(in oklab, var(--color-bone) 12%, transparent);
   color: var(--color-bone);
-  border: 1px solid var(--color-ink-line);
+  border: 1px solid color-mix(in oklab, var(--color-bone) 10%, transparent);
 }
 
 .btn-quiet:hover:not(:disabled) {
@@ -337,6 +371,64 @@ button:disabled {
 }
 
 /*
+ * The summon at rest: a soft halo and no motion at all.
+ *
+ * The pulse this replaces was permanent, and anything moving forever in the
+ * corner of the eye competes with the page for attention — the opposite of
+ * what a trigger should do. It only has to be findable. So the motion is
+ * spent on hover instead, where it answers something the user just did, and
+ * the halo does the finding.
+ *
+ * Colour is rgb() rather than the token because box-shadow needs an alpha
+ * ramp; these are the same channels as --color-kino.
+ */
+.kino-summon {
+  box-shadow:
+    0 6px 20px -6px rgb(0 0 0 / 0.6),
+    0 0 16px -6px rgb(144 252 231 / 0.22);
+  transition:
+    box-shadow 260ms ease,
+    opacity 200ms ease,
+    transform 200ms ease;
+}
+
+.kino-summon:hover,
+.kino-summon:focus-visible {
+  box-shadow:
+    0 8px 24px -6px rgb(0 0 0 / 0.65),
+    0 0 26px -2px rgb(144 252 231 / 0.42);
+}
+
+/*
+ * Kino thinking. Three dots is the one gesture everyone already reads as
+ * "a reply is coming", which is worth more here than inventing something.
+ */
+@keyframes typing-dot {
+  0%,
+  70%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-0.15rem);
+  }
+}
+
+.typing-dot {
+  animation: typing-dot 1.3s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+/*
  * The chrome shared by every summoned panel — the search overlay and Kino.
  * One definition, because two panels seen back to back drift apart the first
  * time either is touched.
@@ -350,6 +442,38 @@ button:disabled {
   border: 1px solid var(--color-ink-line);
   background-color: var(--color-ink-raised);
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+/*
+ * Kino's panel is far larger than search's, and a 0.75rem corner on a 920px
+ * window reads as an accident. It also hosts a rounded composer inset inside
+ * it, and concentric curves need the room: the composer sits 0.5rem in with a
+ * 1rem radius, which is exactly this 1.5rem minus that inset. Move any one of
+ * the three and the other two have to follow, or the corners stop nesting.
+ *
+ * Declared after .overlay-card so equal specificity resolves in its favour.
+ */
+.overlay-card-chat {
+  border-radius: 1.5rem;
+}
+
+/*
+ * Focus inside Kino's panel, in his colour rather than the app's gold.
+ *
+ * Both rules have to live here rather than as Tailwind utilities: the global
+ * :focus-visible outline near the top of this file is unlayered, and unlayered
+ * CSS beats anything in @layer utilities no matter its specificity. A
+ * `focus:outline-none` class on the element does nothing against it.
+ */
+.composer-input:focus-visible {
+  /* The composer already lights its whole border mint via focus-within, so a
+     ring around the text as well would be a second, clashing indicator. Focus
+     stays plainly visible — it just moves to the field's edge. */
+  outline: none;
+}
+
+.kino-focus:focus-visible {
+  outline-color: var(--color-kino);
 }
 
 /*
