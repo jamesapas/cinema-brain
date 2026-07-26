@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "tsx scripts/clean-image-cache.ts",
     "dev": "next dev",
+    "clean:image-cache": "tsx scripts/clean-image-cache.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

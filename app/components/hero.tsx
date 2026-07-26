@@ -52,13 +52,14 @@ export function Hero({ movie, rating }: { movie: MovieCard; rating: number | nul
 
           {text && <p className="mt-4 max-w-lg leading-relaxed text-bone-soft">{text}</p>}
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          {/* Stars sit in the same row as the actions, at the same size they
+              are on a poster — rating the featured film is the same gesture as
+              rating anything in a shelf, so it shouldn't look like a different
+              control. The group carries its own accessible name, so it needs
+              no visible "Your rating" heading. */}
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-4">
             <AskAboutButton title={movie.title} />
             <MoreInfoButton movie={movie} rating={rating} />
-          </div>
-
-          <div className="mt-6 flex flex-col gap-2">
-            <span className="label">Your rating</span>
             <StarRating movieId={movie.id} rating={rating} size="lg" />
           </div>
         </div>

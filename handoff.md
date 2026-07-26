@@ -189,7 +189,17 @@ Recorded so they aren't repeated.
     compile. Rewritten as explicit queries.
 12. **Playwright 1.62 wants a chromium revision that isn't cached.** Launch with
     `executablePath: /home/karl/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome`.
-13. **`npm run db:types` emptied `lib/database.types.ts`.** The shell redirect truncated the file
+13. **Killing the dev server mid-request disabled image caching.** The log filled with
+    `Failed to write image to cache …` / `LRUCache: calculateSize returned 0` /
+    `unhandledRejection`, ~700 of them, starting five seconds after boot. Root cause: Next's
+    `writeToCacheDir` writes the optimized image straight to its final path with no temp file, so
+    a killed process leaves a 0-byte file. On the next start the optimizer replays every cached
+    entry into an LRU sized by byte length, `lru.set(key, 0)` throws inside a module-level promise
+    nobody catches, and every image write for the rest of that process fails. **Two truncated
+    files disabled the whole cache.** Deleting those entries fixed it; `npm run clean:image-cache`
+    (wired to `predev`) now prunes them automatically. Prefer a graceful stop over `kill -9`.
+    Also: `pkill -f "next dev"` matches its own shell — use `pkill -f "next[ ]dev"`.
+14. **`npm run db:types` emptied `lib/database.types.ts`.** The shell redirect truncated the file
     before the missing `supabase` CLI could fail, and the whole app stopped compiling. The script
     now writes to a `.new` file and only moves it on success. The generator also does not emit the
     hand-written aliases at the bottom of that file (`MovieRow`, `MovieInsert`, …) — re-add them

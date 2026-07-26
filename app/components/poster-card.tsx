@@ -7,12 +7,16 @@ import { StarRating } from "@/app/components/star-rating";
 import { posterUrl, type MovieCard } from "@/lib/movies/images";
 
 /**
- * A poster in a row. At rest it's just the artwork; hovering or focusing lifts
- * it and reveals the title and the rating control.
+ * A poster in a row: artwork, then its title and your stars, both always
+ * visible.
+ *
+ * Nothing is hidden behind hover. Rating is what this site is for, so the
+ * control is present the moment the row renders — a star you have to go
+ * looking for is a star nobody sets.
  *
  * The click target is a button covering the artwork rather than a wrapper
- * around it, because the rating stars sit inside the same card and a button
- * can't contain a button. The stars stack above it and take their own clicks.
+ * around the card, because the rating stars sit in the same card and a button
+ * can't contain a button.
  */
 export function PosterCard({
   movie,
@@ -24,19 +28,28 @@ export function PosterCard({
   priority?: boolean;
 }) {
   const openDetails = useMovieDetails();
-  const src = posterUrl(movie.poster_path, "w342");
+  // w500 rather than w342: the card is up to 224px wide, which a 342px source
+  // can't cover on a 2x display.
+  const src = posterUrl(movie.poster_path, "w500");
   if (!src) return null;
 
+  const meta = [
+    movie.release_year ?? null,
+    movie.vote_average ? `★ ${movie.vote_average.toFixed(1)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <article className="group relative w-[9.5rem] shrink-0 snap-start rounded-lg transition-transform duration-200 ease-out hover:z-10 hover:scale-[1.04] focus-within:z-10 focus-within:scale-[1.04] sm:w-[11rem]">
-      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-ink-raised ring-1 ring-ink-line">
+    <article className="group w-[10.5rem] shrink-0 snap-start sm:w-[12.5rem] lg:w-[14rem]">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-ink-raised ring-1 ring-ink-line transition-[box-shadow,filter] duration-200">
         <Image
           src={src}
           alt={`${movie.title} poster`}
           fill
-          sizes="(max-width: 640px) 9.5rem, 11rem"
+          sizes="(max-width: 640px) 10.5rem, (max-width: 1024px) 12.5rem, 14rem"
           priority={priority}
-          className="object-cover"
+          className="object-cover group-hover:scale-105 transition-all duration-300"
         />
 
         <button
@@ -46,29 +59,20 @@ export function PosterCard({
         >
           <span className="sr-only">View details for {movie.title}</span>
         </button>
-
-        {/* Overlay only on hover/focus, so a row at rest stays pure artwork. */}
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col justify-end bg-gradient-to-t from-ink via-ink/70 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-          <p className="text-[0.8125rem] leading-tight font-semibold text-bone">
-            {movie.title}
-          </p>
-          <p className="meta mt-0.5 !text-[0.6875rem]">
-            {movie.release_year ?? "—"}
-            {movie.vote_average ? ` · ★ ${movie.vote_average.toFixed(1)}` : ""}
-          </p>
-          <div className="pointer-events-auto mt-1.5">
-            <StarRating movieId={movie.id} rating={rating} />
-          </div>
-        </div>
       </div>
 
-      {/* A rated film keeps a marker when the overlay is hidden, so you can see
-          what you've already scored while scanning a row. */}
-      {rating !== null && (
-        <p className="meta mt-1.5 !text-xs !text-lamp group-hover:opacity-0">
-          ★ {rating / 2}
-        </p>
-      )}
+      <div className="mt-2.5 space-y-1">
+        {/* Clamped to two lines and reserving both, so a long title neither
+            overflows nor pushes this card's stars below its neighbours'. */}
+        <h3 className="line-clamp-2 text-sm leading-snug font-semibold text-bone">
+          {movie.title}
+        </h3>
+        {meta && <p className="meta mt-0.5 !text-xs">{meta}</p>}
+
+        <div className="mt-2">
+          <StarRating movieId={movie.id} rating={rating} size="lg" />
+        </div>
+      </div>
     </article>
   );
 }
