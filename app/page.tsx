@@ -1,65 +1,125 @@
-import Image from "next/image";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+import { AppShell } from "@/app/components/app-shell";
+import { CarouselRow } from "@/app/components/carousel-row";
+import { Hero } from "@/app/components/hero";
+import {
+  getBecauseYouRated,
+  getByGenre,
+  getHeroMovie,
+  getRatingsByMovie,
+  getTopRated,
+  getTrending,
+} from "@/lib/movies/catalog";
+import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
+import { getProfile } from "@/lib/profiles/queries";
+import { createServerSupabase } from "@/lib/supabase/server";
+
+/** The genre shelf follows the user's taste when there is any to follow. */
+function favouriteGenre(
+  ratings: Map<number, number>,
+  genresByMovie: Map<number, string[]>,
+): string | null {
+  const counts = new Map<string, number>();
+  for (const [movieId, rating] of ratings) {
+    if (rating < 7) continue;
+    for (const genre of genresByMovie.get(movieId) ?? []) {
+      counts.set(genre, (counts.get(genre) ?? 0) + 1);
+    }
+  }
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [genre, count] of counts) {
+    if (count > bestCount) {
+      best = genre;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+export default async function Home() {
+  const supabase = await createServerSupabase();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // The proxy already gates this, but a page rendering a signed-in shell
+  // shouldn't depend on that alone.
+  if (!user) redirect("/login");
+
+  const [trending, topRated, ratings, personalized, profile] = await Promise.all([
+    getTrending(supabase, 20),
+    getTopRated(supabase, { limit: 20 }),
+    getRatingsByMovie(supabase),
+    getBecauseYouRated(supabase, 20),
+    getProfile(supabase),
+  ]);
+
+  // Genres for the rated films, to pick a shelf that matches their taste.
+  const ratedIds = [...ratings.keys()];
+  const { data: ratedRows } = ratedIds.length
+    ? await supabase.from("movies").select("id, genres").in("id", ratedIds)
+    : { data: [] };
+  const genresByMovie = new Map((ratedRows ?? []).map((row) => [row.id, row.genres]));
+
+  const genre = favouriteGenre(ratings, genresByMovie) ?? "Science Fiction";
+  const [genreRow, hero] = await Promise.all([
+    getByGenre(supabase, genre, 20),
+    // Don't feature something they've already rated — the slot is for discovery.
+    getHeroMovie(supabase, ratedIds),
+  ]);
+
+  const ratingsById = Object.fromEntries(ratings);
+
+  const email = user.email ?? "signed in";
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <AppShell
+      email={email}
+      displayName={displayNameFor(profile?.display_name ?? null, email)}
+      avatarUrl={avatarUrl(profile?.avatar_path)}
+      initials={initialsFor(profile?.display_name ?? null, email)}
+    >
+      <main className="flex-1 pb-24">
+        {/* Outside the container on purpose: the backdrop is the one full-width
+            thing on the page. */}
+        {hero && <Hero movie={hero} rating={ratings.get(hero.id) ?? null} />}
+
+        {/* Without a hero the shelves start at the top, so they need clearance
+            for the fixed header of their own. */}
+        <div
+          className={`page-container flex flex-col gap-2 ${hero ? "pt-6" : "pt-28"}`}
+        >
+          {personalized && (
+            <CarouselRow
+              title={`Because you rated ${personalized.seed.title}`}
+              note={`${personalized.seed.rating / 2}★ · found by meaning`}
+              movies={personalized.movies}
+              ratings={ratingsById}
+              priority
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          )}
+
+          <CarouselRow
+            title="Trending"
+            movies={trending}
+            ratings={ratingsById}
+            priority={!personalized}
+          />
+
+          <CarouselRow
+            title="Top rated"
+            note="500+ votes"
+            movies={topRated}
+            ratings={ratingsById}
+          />
+
+          <CarouselRow title={genre} movies={genreRow} ratings={ratingsById} />
         </div>
       </main>
-    </div>
+    </AppShell>
   );
 }

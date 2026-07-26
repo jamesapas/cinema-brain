@@ -6,12 +6,25 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync:movies": "tsx scripts/sync-movies.ts",
+    "pinecone:setup": "tsx scripts/setup-pinecone.ts",
+    "embed:movies": "tsx scripts/embed-movies.ts",
+    "seed:test-user": "tsx scripts/seed-test-user.ts",
+    "chat": "tsx scripts/chat.ts",
+    "db:types": "npx --yes supabase gen types typescript --project-id lwuycdhoilckrxymjokq > lib/database.types.ts.new && mv lib/database.types.ts.new lib/database.types.ts"
   },
   "dependencies": {
+    "@next/env": "^16.2.11",
+    "@pinecone-database/pinecone": "^8.1.0",
+    "@supabase/ssr": "^0.12.3",
+    "@supabase/supabase-js": "^2.110.8",
     "next": "16.2.11",
+    "openai": "^6.49.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -20,7 +33,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "playwright": "^1.62.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }
