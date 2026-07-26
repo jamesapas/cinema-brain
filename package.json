@@ -17,6 +17,7 @@
     "db:types": "npx --yes supabase gen types typescript --project-id lwuycdhoilckrxymjokq > lib/database.types.ts.new && mv lib/database.types.ts.new lib/database.types.ts"
   },
   "dependencies": {
+    "@iconify/react": "^6.0.2",
     "@next/env": "^16.2.11",
     "@pinecone-database/pinecone": "^8.1.0",
     "@supabase/ssr": "^0.12.3",

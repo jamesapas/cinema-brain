@@ -2,9 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { AppShell } from "@/app/components/app-shell";
-import { AvatarUploader } from "@/app/components/avatar-uploader";
-import { DisplayNameForm } from "@/app/components/display-name-form";
 import { PosterCard } from "@/app/components/poster-card";
+import { ProfileIdentity } from "@/app/components/profile-identity";
 import { getRatedMovies } from "@/lib/movies/catalog";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import { getProfile } from "@/lib/profiles/queries";
@@ -41,18 +40,15 @@ export default async function ProfilePage() {
     <AppShell email={email} displayName={name} avatarUrl={picture} initials={initials}>
       <main className="page-container flex-1 pt-28 pb-24">
         <div className="flex flex-col gap-12">
-          <section className="flex flex-col gap-7">
-            <div>
-              <p className="label">Your profile</p>
-              <h1 className="mt-2 text-3xl font-bold text-bone sm:text-4xl">{name}</h1>
-              <p className="meta mt-2">
-                {email} · Member since {memberSince}
-              </p>
-            </div>
-
-            <AvatarUploader userId={user.id} url={picture} initials={initials} />
-            <DisplayNameForm value={profile?.display_name ?? null} />
-          </section>
+          <ProfileIdentity
+            userId={user.id}
+            email={email}
+            name={name}
+            displayName={profile?.display_name ?? null}
+            avatarUrl={picture}
+            initials={initials}
+            memberSince={memberSince}
+          />
 
           {stats.count === 0 ? (
             <EmptyState />

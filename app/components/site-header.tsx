@@ -1,7 +1,8 @@
 "use client";
 
+import { Icon } from "@iconify/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
@@ -54,14 +55,63 @@ export function SiteHeader({
           Cinema Brain
         </Link>
 
-        <AccountMenu
-          email={email}
-          displayName={displayName}
-          avatarUrl={avatarUrl}
-          initials={initials}
-        />
+        <div className="flex items-center gap-1.5">
+          <NavLink href="/" icon="lucide:house" label="Home" />
+
+          {/* No search yet. The control is here so the shape of the bar
+              doesn't change when it arrives; wire it up then. */}
+          <button
+            type="button"
+            aria-label="Search"
+            className={ICON_CONTROL}
+          >
+            <Icon icon="iconamoon:search" width={24} height={24} aria-hidden />
+          </button>
+
+          <AccountMenu
+            email={email}
+            displayName={displayName}
+            avatarUrl={avatarUrl}
+            initials={initials}
+          />
+        </div>
       </div>
     </header>
+  );
+}
+
+/** Shared by the icon controls on the right, so they sit as one set. */
+const ICON_CONTROL =
+  "grid h-10 w-10 place-items-center rounded-full text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone";
+
+/**
+ * A destination in the bar. The wordmark already goes home; this is the
+ * signpost that says so, and it marks itself when you're there.
+ *
+ * Icon only, since it sits in a row of icon controls — the label would be the
+ * one piece of text among them. The name is still announced.
+ */
+function NavLink({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: string;
+  label: string;
+}) {
+  const pathname = usePathname();
+  const current = pathname === href;
+
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      aria-current={current ? "page" : undefined}
+      className={`${ICON_CONTROL} ${current ? "!text-bone" : ""}`}
+    >
+      <Icon icon={icon} width={24} height={24} aria-hidden />
+    </Link>
   );
 }
 
