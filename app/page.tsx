@@ -6,7 +6,6 @@ import { Hero } from "@/app/components/hero";
 import {
   getBecauseYouRated,
   getByGenre,
-  getHeroMovie,
   getRatingsByMovie,
   getTopRated,
   getTrending,
@@ -66,11 +65,12 @@ export default async function Home() {
   const genresByMovie = new Map((ratedRows ?? []).map((row) => [row.id, row.genres]));
 
   const genre = favouriteGenre(ratings, genresByMovie) ?? "Science Fiction";
-  const [genreRow, hero] = await Promise.all([
-    getByGenre(supabase, genre, 20),
-    // Don't feature something they've already rated — the slot is for discovery.
-    getHeroMovie(supabase, ratedIds),
-  ]);
+  const genreRow = await getByGenre(supabase, genre, 20);
+
+  // The featured slot rotates through what's trending, and keeps films you've
+  // already rated rather than skipping them — your score shows on the stars.
+  // Only films with a backdrop qualify; the hero is mostly its artwork.
+  const heroMovies = trending.filter((movie) => movie.backdrop_path).slice(0, 6);
 
   const ratingsById = Object.fromEntries(ratings);
 
@@ -86,12 +86,16 @@ export default async function Home() {
       <main className="flex-1 pb-24">
         {/* Outside the container on purpose: the backdrop is the one full-width
             thing on the page. */}
-        {hero && <Hero movie={hero} rating={ratings.get(hero.id) ?? null} />}
+        {heroMovies.length > 0 && (
+          <Hero movies={heroMovies} ratings={ratingsById} />
+        )}
 
         {/* Without a hero the shelves start at the top, so they need clearance
             for the fixed header of their own. */}
         <div
-          className={`page-container flex flex-col gap-2 ${hero ? "pt-6" : "pt-28"}`}
+          className={`page-container flex flex-col gap-2 ${
+            heroMovies.length > 0 ? "pt-6" : "pt-28"
+          }`}
         >
           {personalized && (
             <CarouselRow
