@@ -30,7 +30,7 @@ Everything below is working and was verified end-to-end, not assumed.
 | RLS | Verified: strangers see 0 ratings and 0 profiles, forged inserts/updates affect 0 rows |
 | Agent | **Kino** — 4 tools, model-driven, streams over SSE |
 | Search | Title search over Postgres (trigram), as a centred overlay with infinite scroll, plus a `/search` page |
-| UI | Catalog home (auto-rotating hero carousel + 4 shelves + star rating), poster → details dialog, profile page, Kino as a centred chat window |
+| UI | Catalog home (auto-rotating hero carousel + 4 shelves + star rating), poster → `/movie/[id]` with a "More like this" shelf, profile page, Kino as a centred chat window |
 | Checks | `tsc`, `eslint`, and `next build` all clean. The hero carousel was additionally driven in a real browser (autoplay, drag both ways, click-safety) — see *Verifying UI* |
 
 **Supabase project:** `lwuycdhoilckrxymjokq`
@@ -61,8 +61,9 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `lib/movies/search.ts` — agent-facing queries (metadata, semantic, rating history). Its
   projection deliberately excludes image paths; the model shouldn't pay tokens for filenames.
 - `lib/movies/catalog.ts` — browse-facing queries (trending, top rated, genre, hero,
-  "because you rated X", `searchMoviesByTitle`). **Server-only** — reaches Pinecone via
-  `search.ts`. `getHeroMovie` is still exported but **no longer used** — the hero rotates
+  "because you rated X", `searchMoviesByTitle`, `getMovieById`, `getRelatedMovies`).
+  **Server-only** — reaches Pinecone via `search.ts`. `getHeroMovie` is still exported but
+  **no longer used** — the hero rotates
   through trending now. Delete it or wire it back deliberately.
 - `lib/movies/search-config.ts` — `MIN_SEARCH_LENGTH` alone. Its own module for the same reason
   `images.ts` exists: a client component importing a constant from `catalog.ts` would drag the
@@ -91,11 +92,14 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `lib/supabase/admin.ts` — **bypasses RLS**; back-office jobs only.
 
 **UI**
-- `app/page.tsx` — catalog: hero carousel + 4 shelves. `app/profile/page.tsx` — profile + taste
-  stats. `app/login/page.tsx` — auth. `app/search/page.tsx` — the full search page.
-- `app/components/app-shell.tsx` — header + all providers; every signed-in page mounts it.
+- `app/page.tsx` — catalog: hero carousel + 4 shelves. `app/movie/[id]/page.tsx` — one film,
+  with its "More like this" shelf (plus a `loading.tsx`, which the Next 16 docs ask for on
+  dynamic routes). `app/profile/page.tsx` — profile + taste stats. `app/login/page.tsx` — auth.
+  `app/search/page.tsx` — the full search page.
+- `app/components/app-shell.tsx` — header + the chat and search providers; every signed-in page
+  mounts it. Film details are a route now, so they need nothing from it.
 - `app/components/` — `site-header`, `avatar`, `profile-identity`, `hero`, `carousel-row`,
-  `poster-card`, `movie-details`, `star-rating`, `chat-overlay`, `kino-avatar`,
+  `poster-card`, `star-rating`, `chat-overlay`, `kino-avatar`,
   `search-overlay`, `search-field`.
 - `app/components/hero.tsx` — **client** component. Auto-rotating carousel over the top 6
   trending films that have a backdrop, 7s dwell, crossfaded (all backdrops stacked, only the
@@ -136,9 +140,10 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
    13px sentence case). Mono survives only in the agent's consultation rail. Buttons became
    `.btn` / `.btn-primary` / `.btn-quiet`, and a global rule restores `cursor: pointer`, which
    Tailwind v4 drops from buttons.
-8. **Movie details dialog** (`app/components/movie-details.tsx`) — clicking a poster opens full
-   details over the catalog. A dialog rather than a `/movie/[id]` route because browsing is a
-   scroll position and a round trip loses it. Every field it shows already travelled with the card
+8. **Movie details dialog** — **superseded by #19; the file is deleted.** Kept here for the
+   reasoning, which turned out to be half right: a dialog rather than a `/movie/[id]` route
+   because browsing is a scroll position and a round trip loses it. See #20 — it does lose it,
+   though the docs say it shouldn't. Every field it showed already travelled with the card
    (`tagline` and `vote_count` were added to `CARD_SELECT` for it), so opening one costs no
    request. Escape and the scrim close it, focus returns to the poster, and the body scroll locks
    while it is open. `MoreInfoButton` opens the same dialog from the hero.
@@ -158,7 +163,7 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     it) and carries an avatar menu with the profile link and sign-out. `/profile` shows the
     picture, an editable display name, and what the app knows about
     someone's taste: four stat tiles, a rating spread, a genre spread, every rated film as a
-    poster that opens the details dialog, and their notes. Both charts are single-series, so one
+    poster that opens its film's page, and their notes. Both charts are single-series, so one
     hue at 70% (validated ≥3:1 against the surface), counts labelled directly, no legend.
 12. **Contained layout, darker stock** — everything except the hero backdrop sits in
     `.page-container` (`app/globals.css`, currently 90rem with a 1.5/2rem gutter): the header's
@@ -207,6 +212,44 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     size can be `size-4 sm:size-[22px]` — five 22px stars are 114px, which was the entire width of
     a 128px card. `sm`/`lg` are unchanged and `sm:` restores every old value, so **≥640px renders
     byte-identically** (verified: card 224px / star 22px at 1440, 200/22 at 768 and 640).
+
+19. **Film pages, and "More like this" (2026-07-26).** `/movie/[id]` replaced the details dialog,
+    which is deleted along with `MovieDetailsProvider`. Posters, the hero's "More info" and search
+    results are all links now. `app/profile` needed no change — it renders through `PosterCard`.
+    The dialog's known defect (its stars and the poster's not tracking each other) went with it.
+
+    **Related films come from our own embeddings, not TMDB.** Both are free, so quality decided.
+    Measured on the live index: a Pinecone query **by stored vector id** (`QueryByRecordId`) costs
+    **1 read unit and no OpenAI call at all** — the vector was already paid for — and `topK` is
+    free (13, 50 and 100 each billed exactly 1 RU), which is why `getRelatedMovies` over-fetches
+    100 candidates and filters in Postgres. TMDB's `/recommendations` is behavioural and drifts:
+    it answers *Scary Movie* with 21 Jump Street and Black Dynamite where the vectors answer with
+    Scary Movie 2, Scream and Stan Helsing; it answers *Inception* with The Dark Tower and Solo.
+    Its `/similar` endpoint is unusable — *Toy Story* for *Inception*. Rejected after testing:
+    filtering the vector query by shared genre (TMDB's genre data is too unreliable — *Smile 2* is
+    tagged `Music`, which drags in *Sing 2*), and precomputing neighbours into a table (~$1.66 and
+    a table to keep fresh, to save $0.000016 a view).
+
+    A `vote_count >= 500` floor is what makes the list watchable; roughly a third of candidates
+    clear it for a mainstream film. Below 6 survivors the floor drops away entirely — verified on
+    long-tail films where 0–3 of 99 cleared it and the shelf still filled.
+
+20. **Scroll position is *not* preserved coming back from a film — a real defect, measured.**
+    The route was chosen partly because the Next 16 docs say `<Link>` "maintain[s] scroll
+    position, similar to how browsers handle back and forwards navigation". It does, up to a
+    point: a scroll of 700 comes back at 698, but **1200 and 1775 both come back at 416**,
+    in dev and in the production build alike. The browser restores the position while the
+    document is still the (shorter) film page, so the value is clamped, and the catalog then
+    grows underneath it. A full page load restores correctly; only client-side transitions fail.
+
+    Two things were tried and did **not** fix it: `experimental.staleTimes.dynamic` (the config
+    is unrelated — the docs say it doesn't touch back/forward behaviour), and `cacheComponents:
+    true`, which *is* the framework's own answer — it keeps the previous page mounted under React
+    `<Activity>`, explicitly preserving scroll positions. Enabling it fails the build with
+    `Route "/": Uncached data was accessed outside of <Suspense>`, because every page here reads
+    cookies at the top level. Fixing that is an app-wide migration
+    (`node_modules/next/dist/docs/01-app/02-guides/migrating-to-cache-components.md`), not a
+    config flip — it is the obvious next move if this matters.
 
 ## Verifying UI
 
@@ -327,16 +370,12 @@ Recorded so they aren't repeated.
   smooth, but it is 6 full-width images on the home page; only the first is `priority`.
 - The Supabase CLI isn't installed, so `npm run db:types` needs `npx` to fetch it (the script now
   does). Types can also be regenerated through the Supabase MCP.
-- `StarRating` seeds its state from a prop, so the copy in the details dialog and the copy on the
-  poster behind it don't track each other until the next full load. Rating from either still
-  writes correctly.
 
 **Worth doing next**
+- **Scroll restoration** — see *Changes made* #20. `cacheComponents: true` plus a `<Suspense>`
+  boundary on every page is the framework's own fix; nothing smaller worked.
 - **Hear Kino.** His voice and the "never describe your own process" rule were written but never
   listened to — no chat turn has been run since. `npm run chat -- "..."` is the fastest check.
-- **"More like this" in the details dialog** — the vector index now covers all 104k films, so
-  this is a much better feature than it was at 499. Still the obvious next move once someone has
-  opened a film.
 - **Give the chat panel page context** so "help me decide" knows what you were looking at; only
   the hero passes a seeded question today.
 - **Prompt caching / trimming** for chat cost — a personalized turn resends ~11–13k input tokens,

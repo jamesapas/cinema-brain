@@ -172,6 +172,37 @@ export async function searchByMeaning(
     .sort((a, b) => b.similarity - a.similarity);
 }
 
+/**
+ * Neighbours of a film already in the index, keyed by id with their similarity.
+ *
+ * Queries Pinecone **by stored vector id**, so this costs no embedding call at
+ * all — the vector was paid for at sync time. `topK` is also free: 13, 50 and
+ * 100 were measured to bill exactly one read unit each, so callers should
+ * over-fetch and filter rather than ask for only what they intend to show.
+ *
+ * A film with no vector — never embedded, or withdrawn since — comes back as an
+ * empty map rather than throwing: Pinecone answers an unknown id with zero
+ * matches, not an error.
+ */
+export async function findSimilarMovieIds(
+  movieId: number,
+  limit = 100,
+): Promise<Map<number, number>> {
+  const response = await getMoviesIndex().query({
+    id: String(movieId),
+    topK: limit,
+  });
+
+  const scores = new Map<number, number>();
+  for (const match of response.matches ?? []) {
+    scores.set(Number(match.id), match.score ?? 0);
+  }
+
+  // A film is always its own nearest neighbour, at similarity 1.
+  scores.delete(movieId);
+  return scores;
+}
+
 export type UserRating = {
   movie_id: number;
   title: string;

@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 
-import { useMovieDetails } from "@/app/components/movie-details";
 import { StarRating } from "@/app/components/star-rating";
 import { posterUrl, type MovieCard } from "@/lib/movies/images";
 
@@ -14,9 +14,9 @@ import { posterUrl, type MovieCard } from "@/lib/movies/images";
  * control is present the moment the row renders — a star you have to go
  * looking for is a star nobody sets.
  *
- * The click target is a button covering the artwork rather than a wrapper
- * around the card, because the rating stars sit in the same card and a button
- * can't contain a button.
+ * The click target is a link covering the artwork rather than a wrapper around
+ * the card, because the rating stars sit in the same card and a link can no
+ * more contain a button than a button could.
  */
 export function PosterCard({
   movie,
@@ -27,7 +27,6 @@ export function PosterCard({
   rating: number | null;
   priority?: boolean;
 }) {
-  const openDetails = useMovieDetails();
   // w500 rather than w342: the card is up to 224px wide, which a 342px source
   // can't cover on a 2x display. Still w500 on phones — the card is smaller
   // there, but the pixel ratio is higher.
@@ -57,13 +56,12 @@ export function PosterCard({
           className="object-cover group-hover:scale-105 transition-all duration-300"
         />
 
-        <button
-          type="button"
-          onClick={() => openDetails(movie, rating)}
-          className="absolute inset-0 z-10 cursor-pointer rounded-lg outline-offset-2"
+        <Link
+          href={`/movie/${movie.id}`}
+          className="absolute inset-0 z-10 rounded-lg outline-offset-2"
         >
           <span className="sr-only">View details for {movie.title}</span>
-        </button>
+        </Link>
       </div>
 
       <div className="mt-2 space-y-1 sm:mt-2.5">

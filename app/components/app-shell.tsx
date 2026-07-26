@@ -1,15 +1,14 @@
 import { ChatOverlayProvider } from "@/app/components/chat-overlay";
-import { MovieDetailsProvider } from "@/app/components/movie-details";
 import { SearchOverlayProvider } from "@/app/components/search-overlay";
 import { SiteHeader } from "@/app/components/site-header";
 
 /**
- * Everything a signed-in page shares: the header, the details dialog, the
- * search overlay, and the chat drawer. Every page mounts it, so a poster opens
- * the same dialog wherever you clicked it and Cmd-K works everywhere.
+ * Everything a signed-in page shares: the header, the search overlay, and
+ * Kino's chat window. Every page mounts it, so Cmd-K works everywhere.
  *
- * Nesting is load-bearing: the search overlay opens the details dialog, so it
- * sits inside that provider.
+ * Film details used to be a third provider here. They are a route now
+ * (`/movie/[id]`), which is why a poster is a link and needs nothing from this
+ * shell to open one.
  */
 export function AppShell({
   email,
@@ -26,19 +25,17 @@ export function AppShell({
 }) {
   return (
     <ChatOverlayProvider>
-      <MovieDetailsProvider>
-        <SearchOverlayProvider>
-          <div className="flex min-h-full flex-1 flex-col">
-            <SiteHeader
-              email={email}
-              displayName={displayName}
-              avatarUrl={avatarUrl}
-              initials={initials}
-            />
-            {children}
-          </div>
-        </SearchOverlayProvider>
-      </MovieDetailsProvider>
+      <SearchOverlayProvider>
+        <div className="flex min-h-full flex-1 flex-col">
+          <SiteHeader
+            email={email}
+            displayName={displayName}
+            avatarUrl={avatarUrl}
+            initials={initials}
+          />
+          {children}
+        </div>
+      </SearchOverlayProvider>
     </ChatOverlayProvider>
   );
 }

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
 import type { MovieCard } from "@/lib/movies/images";
-import { searchByMeaning } from "@/lib/movies/search";
+import { findSimilarMovieIds, searchByMeaning } from "@/lib/movies/search";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
 
 // Presentation helpers live in images.ts so client components can use them
@@ -19,8 +19,9 @@ export { posterUrl, backdropUrl } from "@/lib/movies/images";
  * would only pay tokens to read them. Same tables, different shape.
  */
 
-// tagline and vote_count are here for the details dialog: both are small, and
-// fetching them with the row means opening a poster costs no round trip.
+// tagline and vote_count are here for the film page: both are small, and one
+// projection for cards and pages alike means there is only one thing to keep
+// in step with `MovieCard`.
 const CARD_SELECT =
   "id, title, tagline, release_year, genres, runtime, vote_average, vote_count, overview, poster_path, backdrop_path";
 
@@ -93,6 +94,82 @@ export async function hydrateCards(
   if (error) throw new Error(`Failed to load movie cards: ${error.message}`);
 
   return new Map((data ?? []).map((row) => [row.id, row]));
+}
+
+/** One film, for its own page. Null when the id isn't in the catalog. */
+export async function getMovieById(
+  supabase: SupabaseClient<Database>,
+  id: number,
+): Promise<MovieCard | null> {
+  const { data, error } = await supabase
+    .from("movies")
+    .select(CARD_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Movie ${id} lookup failed: ${error.message}`);
+  return data;
+}
+
+/**
+ * A shelf is only worth scrolling if the films on it are ones you might have
+ * heard of. The catalog's long tail is films with a dozen votes, and raw vector
+ * neighbours are full of them.
+ */
+const RELATED_MIN_VOTES = 500;
+
+/** Below this many survivors, the floor is costing more than it's buying. */
+const RELATED_MIN_RESULTS = 6;
+
+/**
+ * "More like this" — the films nearest this one in meaning.
+ *
+ * Vectors rather than TMDB's own `/recommendations`: both are free, so quality
+ * decided it. TMDB's list is behavioural ("people who watched this also
+ * watched") and drifts — it answers *Scary Movie* with 21 Jump Street and Black
+ * Dynamite, where the vectors answer with Scary Movie 2, Scream and Stan
+ * Helsing. It also needs no OpenAI call, since the query is the film's own
+ * stored vector.
+ *
+ * Over-fetching is deliberate and free (see `findSimilarMovieIds`): 100
+ * candidates go to Postgres, where a popularity floor does the work Pinecone
+ * can't, because the vector metadata carries no vote count. Roughly a third
+ * survive for a mainstream film. An obscure one keeps almost nothing, so the
+ * floor drops away entirely rather than returning a shelf of three.
+ */
+export async function getRelatedMovies(
+  supabase: SupabaseClient<Database>,
+  movieId: number,
+  limit = 20,
+): Promise<MovieCard[]> {
+  const scores = await findSimilarMovieIds(movieId, 100);
+  if (scores.size === 0) return [];
+
+  const ids = [...scores.keys()];
+
+  let rows = unwrap(
+    await supabase
+      .from("movies")
+      .select(CARD_SELECT)
+      .in("id", ids)
+      .gte("vote_count", RELATED_MIN_VOTES),
+    "Related films",
+  );
+
+  if (rows.length < RELATED_MIN_RESULTS) {
+    // Second Postgres query, no second Pinecone read — the candidates are
+    // already in hand.
+    rows = unwrap(
+      await supabase.from("movies").select(CARD_SELECT).in("id", ids),
+      "Related films",
+    );
+  }
+
+  // Postgres returns `in()` rows in arbitrary order; similarity is the whole
+  // point of the list, so impose it here.
+  return rows
+    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
+    .slice(0, limit);
 }
 
 /** The user's ratings keyed by movie, so cards can show current star state. */

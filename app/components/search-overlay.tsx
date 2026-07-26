@@ -2,6 +2,8 @@
 
 import { Icon } from "@iconify/react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -11,7 +13,6 @@ import {
   useState,
 } from "react";
 
-import { useMovieDetails } from "@/app/components/movie-details";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
 import { posterUrl, type MovieCard } from "@/lib/movies/images";
 
@@ -21,7 +22,9 @@ import { posterUrl, type MovieCard } from "@/lib/movies/images";
  * Finding a film is a detour, not a destination — you want to check whether
  * the catalog has something and get back to what you were doing. So this
  * floats above the page rather than navigating away from it, and closing it
- * leaves you exactly where you were. The list pages in as you scroll rather
+ * leaves you exactly where you were — choosing a result, of course, does take
+ * you to that film's page, which is the one thing you came here to do. The
+ * list pages in as you scroll rather
  * than handing off to `/search`, so a long result set never costs you the
  * page you were on. `/search` still exists as a linkable result set, but
  * nothing here points at it.
@@ -64,7 +67,7 @@ type SearchResponse = { movies?: MovieCard[]; hasMore?: boolean; error?: string 
 /* Chrome lives in globals.css as `.overlay-card`, shared with Kino's panel. */
 
 function SearchOverlay({ onClose }: { onClose: () => void }) {
-  const openDetails = useMovieDetails();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState<MovieCard[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -217,9 +220,14 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
       [active]?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
+  /**
+   * The keyboard path. The rows themselves are real links — middle-click and
+   * "open in new tab" should work on a list of films — so this exists only for
+   * Enter, which has no link to activate.
+   */
   function show(movie: MovieCard) {
     onClose();
-    openDetails(movie, null);
+    router.push(`/movie/${movie.id}`);
   }
 
   function onKeyDown(event: React.KeyboardEvent) {
@@ -303,9 +311,9 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
                 <ul ref={listRef} className="result-in py-2">
                   {movies.map((movie, index) => (
                     <li key={movie.id}>
-                      <button
-                        type="button"
-                        onClick={() => show(movie)}
+                      <Link
+                        href={`/movie/${movie.id}`}
+                        onClick={onClose}
                         onMouseEnter={() => setActive(index)}
                         className={`flex w-full items-center gap-3.5 px-3 py-2.5 text-left transition-colors ${
                           index === active ? "bg-bone/10" : ""
@@ -326,7 +334,7 @@ function SearchOverlay({ onClose }: { onClose: () => void }) {
                               .join(" · ")}
                           </span>
                         </span>
-                      </button>
+                      </Link>
                     </li>
                   ))}
                 </ul>

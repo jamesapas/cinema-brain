@@ -1,12 +1,39 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AskAboutButton } from "@/app/components/chat-overlay";
-import { MoreInfoButton } from "@/app/components/movie-details";
 import { StarRating } from "@/app/components/star-rating";
 import { backdropUrl, metaLine, type MovieCard } from "@/lib/movies/images";
+
+/**
+ * Through to the featured film's page.
+ *
+ * A link inside the draggable surface is safe for the same reason the old
+ * button was: the drag is measured on release, and a click travels ~0px.
+ */
+function MoreInfoLink({ movieId }: { movieId: number }) {
+  return (
+    <Link href={`/movie/${movieId}`} className="btn btn-quiet">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="9.25" />
+        <path d="M12 11v5.5M12 7.6v.1" />
+      </svg>
+      More info
+    </Link>
+  );
+}
 
 /** Overviews run long; the hero wants a taste, not the whole synopsis. */
 function blurb(overview: string | null, max = 180) {
@@ -177,9 +204,9 @@ export function Hero({
               info" read as one control group rather than two buttons that
               happen to sit together.
             */}
-            <div className="inline-grid grid-cols-2 gap-3 [&>button]:w-full">
+            <div className="inline-grid grid-cols-2 gap-3 [&>a]:w-full [&>button]:w-full">
               <AskAboutButton title={movie.title} />
-              <MoreInfoButton movie={movie} rating={ratings[movie.id] ?? null} />
+              <MoreInfoLink movieId={movie.id} />
             </div>
             <StarRating
               movieId={movie.id}
