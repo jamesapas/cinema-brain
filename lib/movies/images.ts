@@ -39,14 +39,3 @@ export function formatRuntime(minutes: number | null): string | null {
   if (hours === 0) return `${rest}m`;
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
-
-/** The metadata line under a title: year · runtime · genres, minus the gaps. */
-export function metaLine(movie: MovieCard, genreCount = 3): string {
-  return [
-    movie.release_year,
-    formatRuntime(movie.runtime),
-    movie.genres.slice(0, genreCount).join(", ") || null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-}

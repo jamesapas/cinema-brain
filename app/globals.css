@@ -429,6 +429,41 @@ button:disabled {
 }
 
 /*
+ * Loading placeholders.
+ *
+ * The fill is the palette's own hairline tone, breathing towards bone rather
+ * than sitting at a flat translucent white. Bone at 10% over ink mixed to a
+ * cool grey that read as a different, colder app than the one it stands in for
+ * — the page it covers is ink-blue, so its placeholders are too.
+ *
+ * No border-radius here on purpose: this file is unlayered and would beat any
+ * `rounded-*` utility on the same element, so each skeleton still states its
+ * own corner the way the thing it replaces does.
+ */
+.skeleton {
+  background-color: var(--color-ink-line);
+  animation: skeleton-breathe 2s ease-in-out infinite;
+}
+
+@keyframes skeleton-breathe {
+  0%,
+  100% {
+    background-color: var(--color-ink-line);
+  }
+  50% {
+    background-color: color-mix(in oklab, var(--color-bone) 7%, var(--color-ink-line));
+  }
+}
+
+/* A page that is merely loading has no business animating for someone who
+   asked for stillness. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/*
  * The chrome shared by every summoned panel — the search overlay and Kino.
  * One definition, because two panels seen back to back drift apart the first
  * time either is touched.

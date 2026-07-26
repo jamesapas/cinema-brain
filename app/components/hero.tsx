@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AskAboutButton } from "@/app/components/chat-overlay";
+import { MovieMeta } from "@/app/components/movie-meta";
 import { StarRating } from "@/app/components/star-rating";
-import { backdropUrl, metaLine, type MovieCard } from "@/lib/movies/images";
+import { backdropUrl, type MovieCard } from "@/lib/movies/images";
 
 /**
  * Through to the featured film's page.
@@ -188,7 +189,7 @@ export function Hero({
             {movie.title}
           </h1>
 
-          <p className="meta mt-3 !text-sm">{metaLine(movie)}</p>
+          <MovieMeta movie={movie} className="mt-3 !text-sm" />
 
           {text && <p className="mt-4 max-w-lg leading-relaxed text-bone-soft">{text}</p>}
 

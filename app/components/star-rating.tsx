@@ -21,17 +21,26 @@ const SIZE_CLASS = {
   sm: "size-[15px]",
   lg: "size-[22px]",
   card: "size-4 sm:size-[22px]",
+  /** The film page's own control, where rating is the point of the screen. */
+  xl: "size-7 sm:size-8",
 } as const;
 
 export function StarRating({
   movieId,
   rating,
   size = "sm",
+  showValue = false,
 }: {
   movieId: number;
   /** Stored 1-10 value, or null when unrated. */
   rating: number | null;
   size?: keyof typeof SIZE_CLASS;
+  /**
+   * Print the score beside the stars. Only this component knows the live
+   * value — the prop it was given goes stale the moment you rate — so the
+   * readout has to be rendered from in here rather than by the caller.
+   */
+  showValue?: boolean;
 }) {
   const [saved, setSaved] = useState<number | null>(rating);
   const [preview, setPreview] = useState<number | null>(null);
@@ -66,40 +75,65 @@ export function StarRating({
 
   return (
     <div className="flex flex-col gap-1">
-      <div
-        role="group"
-        aria-label={
-          saved === null ? "Rate this film" : `Your rating: ${saved / 2} of 5 stars`
-        }
-        className="flex items-center gap-px"
-        onMouseLeave={() => setPreview(null)}
-      >
-        {[1, 2, 3, 4, 5].map((star) => {
-          const leftValue = star * 2 - 1;
-          const rightValue = star * 2;
-          return (
-            <span key={star} className={`relative inline-block ${SIZE_CLASS[size]}`}>
-              <StarGlyph fill={fillFor(shown, star)} />
-              {/* Two invisible hit targets per star: left half, right half. */}
-              <button
-                type="button"
-                aria-label={`Rate ${leftValue / 2} of 5 stars`}
-                onClick={() => submit(leftValue)}
-                onMouseEnter={() => setPreview(leftValue)}
-                onFocus={() => setPreview(leftValue)}
-                className="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
-              />
-              <button
-                type="button"
-                aria-label={`Rate ${rightValue / 2} of 5 stars`}
-                onClick={() => submit(rightValue)}
-                onMouseEnter={() => setPreview(rightValue)}
-                onFocus={() => setPreview(rightValue)}
-                className="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
-              />
-            </span>
-          );
-        })}
+      <div className="flex items-center gap-3">
+        <div
+          role="group"
+          aria-label={
+            saved === null ? "Rate this film" : `Your rating: ${saved / 2} of 5 stars`
+          }
+          className="flex items-center gap-px"
+          onMouseLeave={() => setPreview(null)}
+        >
+          {[1, 2, 3, 4, 5].map((star) => {
+            const leftValue = star * 2 - 1;
+            const rightValue = star * 2;
+            return (
+              <span key={star} className={`relative inline-block ${SIZE_CLASS[size]}`}>
+                <StarGlyph fill={fillFor(shown, star)} />
+                {/* Two invisible hit targets per star: left half, right half. */}
+                <button
+                  type="button"
+                  aria-label={`Rate ${leftValue / 2} of 5 stars`}
+                  onClick={() => submit(leftValue)}
+                  onMouseEnter={() => setPreview(leftValue)}
+                  onFocus={() => setPreview(leftValue)}
+                  className="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
+                />
+                <button
+                  type="button"
+                  aria-label={`Rate ${rightValue / 2} of 5 stars`}
+                  onClick={() => submit(rightValue)}
+                  onMouseEnter={() => setPreview(rightValue)}
+                  onFocus={() => setPreview(rightValue)}
+                  className="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
+                />
+              </span>
+            );
+          })}
+        </div>
+
+        {/*
+          Fixed width, not shrink-to-fit. "Not rated" is wider than "4.5 / 5",
+          so a readout that sized to its text changed width the instant you
+          rated — and everything after it in the row, the Ask Kino button
+          included, jumped sideways under the cursor. 5rem clears the longest
+          of the strings below.
+
+          aria-hidden: the group above already carries the same value in its
+          accessible name, so a screen reader would otherwise hear it twice.
+        */}
+        {showValue && (
+          <span aria-hidden className="meta w-20 shrink-0 whitespace-nowrap tabular-nums">
+            {shown === 0 ? (
+              <span className="text-bone-dim">Not rated</span>
+            ) : (
+              <>
+                <span className="font-semibold text-bone">{shown / 2}</span>
+                <span className="text-bone-dim"> / 5</span>
+              </>
+            )}
+          </span>
+        )}
       </div>
       {error && (
         <p role="alert" className="font-mono text-[0.625rem] leading-tight text-lamp">

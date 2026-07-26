@@ -100,7 +100,6 @@ export default async function Home() {
           {personalized && (
             <CarouselRow
               title={`Because you rated ${personalized.seed.title}`}
-              note={`${personalized.seed.rating / 2}★ · found by meaning`}
               movies={personalized.movies}
               ratings={ratingsById}
               priority

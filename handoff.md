@@ -99,8 +99,11 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `app/components/app-shell.tsx` — header + the chat and search providers; every signed-in page
   mounts it. Film details are a route now, so they need nothing from it.
 - `app/components/` — `site-header`, `avatar`, `profile-identity`, `hero`, `carousel-row`,
-  `poster-card`, `star-rating`, `chat-overlay`, `kino-avatar`,
+  `poster-card`, `star-rating`, `movie-meta`, `chat-overlay`, `kino-avatar`,
   `search-overlay`, `search-field`.
+- `app/components/movie-meta.tsx` — the dot-separated line under a title (score · year · runtime ·
+  genres). Hookless, so the film page renders it on the server and the hero bundles it. Shared by
+  both on purpose; see *Changes made* #21.
 - `app/components/hero.tsx` — **client** component. Auto-rotating carousel over the top 6
   trending films that have a backdrop, 7s dwell, crossfaded (all backdrops stacked, only the
   first `priority`). Pauses on hover, focus and drag; `prefers-reduced-motion` disables autoplay
@@ -114,7 +117,8 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
 - `app/actions/rate-movie.ts` · `app/actions/profile.ts` — the app's mutations.
 - `proxy.ts` — session refresh + route gating. **Not `middleware.ts`** — renamed in Next 16.
 - `app/globals.css` — design tokens (ink / bone / lamp), type roles (`.label` / `.meta`),
-  `.btn` variants, the sign-in backdrop, and the sign-in field styles.
+  `.btn` variants, `.skeleton` (loading placeholders), the sign-in backdrop, and the sign-in
+  field styles.
 
 ## Changes made
 
@@ -230,6 +234,31 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     tagged `Music`, which drags in *Sing 2*), and precomputing neighbours into a table (~$1.66 and
     a table to keep fresh, to save $0.000016 a view).
 
+    The page opens on **the same slot the home hero occupies** — `min-h-[62vh] sm:min-h-[70vh]`
+    and both of the hero's gradients, measured equal at 630px on a 900px viewport. Two earlier
+    versions are worth not going back to: a fixed-aspect band with the poster hanging below it on
+    a negative margin and a title padded down to meet the poster's middle (two independent offsets
+    that only roughly agreed), and then the same block with poster and title aligned.
+
+    **There is no poster.** The backdrop is already the film's picture, so the poster only bought
+    a second image at the cost of the width the writing needed; the copy now runs to `max-w-3xl`
+    (768px) and the horizontal gradient holds ink further across (55%/88% rather than the hero's
+    42%/78%) to cover it.
+
+    **Rating sits above the synopsis, not below it** — this app collects scores, so the control
+    that does it is the first thing under the title. `StarRating` gained an `xl` size
+    (`size-7 sm:size-8`, used nowhere else) and an optional `showValue`, which prints `4.5 / 5` or
+    "Not rated" from *inside* the component — the caller's `rating` prop goes stale the moment you
+    rate, so only the component can render a live readout. Nothing frames the row: a panel was
+    tried and cut, because a card over a photograph has to be dark enough to survive a bright
+    frame, which made it a black slab over a dark one.
+
+    That readout is `w-20`, **fixed, not shrink-to-fit**. "Not rated" is wider than "4.5 / 5", so
+    sizing it to its text moved everything after it in the row — the Ask Kino button jumped
+    sideways under the cursor on every hover, since hovering a star previews a value. Verified by
+    measuring the button's `left` across unrated / hover 3.5 / hover 5 / rated / cleared: 320px in
+    all five. Any future readout in a row with a control needs the same treatment.
+
     A `vote_count >= 500` floor is what makes the list watchable; roughly a third of candidates
     clear it for a mainstream film. Below 6 survivors the floor drops away entirely — verified on
     long-tail films where 0–3 of 99 cleared it and the shelf still filled.
@@ -250,6 +279,34 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     cookies at the top level. Fixing that is an app-wide migration
     (`node_modules/next/dist/docs/01-app/02-guides/migrating-to-cache-components.md`), not a
     config flip — it is the obvious next move if this matters.
+
+21. **One meta line, shared, dot-separated (2026-07-26).** `MovieMeta` renders
+    `★ 7.9 · 2026 · 2h 53m · Adventure · Action · Fantasy` under the title on both the film page
+    and the home hero, which had been building the same line two different ways — the hero joined
+    a string in `metaLine()` (now deleted from `lib/movies/images.ts`), the film page laid out
+    spans *and* repeated the genres below the synopsis as pills.
+
+    Three deliberate calls: **the score leads**, because it's the number anyone scans for; **the
+    vote count is gone** — "7.9" is the judgement and "(12,481)" was its footnote, printed as loud
+    as the line's other facts; and **the genre pills are gone**, because genres are metadata like
+    the year is, and three nouns in outlined chips read as filters you could press. The dots are
+    `aria-hidden` (otherwise every fact is separated by "middle dot" read aloud) and the star
+    carries an sr-only "Average rating", since the glyph is ambiguous next to a rating control
+    made of the same shape. The star is `size-[1em]`, so it tracks the hero's `!text-sm` override
+    without a second size prop.
+
+    Measured on five films: the line's text runs **263–363px**, which is what sets the skeleton's
+    meta bar at `w-[21rem]` (336px) — it was `w-48` when the line was only year and runtime.
+
+22. **Skeleton colour moved into `.skeleton` (2026-07-26).** Every placeholder was
+    `animate-pulse bg-bone/10`; bone at 10% over ink mixes to a cool grey, so the loading beat
+    read as a colder app than the page it stood in for. One unlayered class now owns the tone and
+    the rate: base `--color-ink-line`, breathing to 7% bone over 2s, `animation: none` under
+    `prefers-reduced-motion`. It sets **no border-radius** on purpose — this file beats every
+    Tailwind utility (see *Failed attempts* #15), so a `rounded-md` on the element would lose.
+    The `loading.tsx` section also gradients `from-ink to-ink-raised` rather than sitting flat at
+    ink-raised, standing in for the real hero's bottom gradient so there's no seam either side of
+    the swap.
 
 ## Verifying UI
 

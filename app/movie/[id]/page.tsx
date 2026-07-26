@@ -6,13 +6,14 @@ import { cache } from "react";
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
 import { AskAboutButton } from "@/app/components/chat-overlay";
+import { MovieMeta } from "@/app/components/movie-meta";
 import { StarRating } from "@/app/components/star-rating";
 import {
   getMovieById,
   getRatingsByMovie,
   getRelatedMovies,
 } from "@/lib/movies/catalog";
-import { backdropUrl, formatRuntime, posterUrl } from "@/lib/movies/images";
+import { backdropUrl } from "@/lib/movies/images";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import { getProfile } from "@/lib/profiles/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -81,12 +82,6 @@ export default async function MoviePage({ params }: PageProps) {
 
   const ratingsById = Object.fromEntries(ratings);
   const backdrop = backdropUrl(movie.backdrop_path);
-  const poster = posterUrl(movie.poster_path, "w500");
-  const runtime = formatRuntime(movie.runtime);
-  const votes =
-    movie.vote_count && movie.vote_count > 0
-      ? new Intl.NumberFormat("en-US").format(movie.vote_count)
-      : null;
 
   const email = user.email ?? "signed in";
 
@@ -98,111 +93,80 @@ export default async function MoviePage({ params }: PageProps) {
       initials={initialsFor(profile?.display_name ?? null, email)}
     >
       <main className="flex-1 pb-24">
-        {/* Full width and running under the fixed header, like the home page's
-            hero — the artwork is the one thing on the site that isn't in the
+        {/* The same slot the home page's hero occupies, down to the two
+            gradients: a film should not open into a differently shaped page
+            than the one that sent you here. The artwork bleeds full width and
+            runs under the fixed header; everything on top of it stays in the
             page container. */}
-        <div className="relative isolate w-full">
-          {backdrop ? (
-            <div className="relative aspect-[16/9] max-h-[68vh] w-full sm:aspect-[2.6/1]">
-              <Image
-                src={backdrop}
-                alt=""
-                fill
-                priority
-                sizes="100vw"
-                className="object-cover object-top"
-              />
-              {/* Fades the artwork into the page rather than ending it on a
-                  line. The top stop is held light on purpose: at 70% ink a
-                  phone's short 16:9 band was almost entirely veil and the
-                  artwork never showed. The header stays legible because it
-                  fills itself past 24px of scroll. */}
-              <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/25 via-58% to-ink/45" />
-            </div>
-          ) : (
-            <div className="h-40 w-full bg-ink-raised sm:h-56" />
+        <section className="relative isolate min-h-[62vh] w-full overflow-hidden sm:min-h-[70vh]">
+          {backdrop && (
+            <Image
+              src={backdrop}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-top"
+            />
           )}
-        </div>
 
-        {/* Pulled up into the artwork, so the poster overlaps it the way it
-            does on a streaming service rather than sitting in a band below. */}
-        <div className="page-container relative -mt-20 sm:-mt-28 lg:-mt-36">
-          <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
-            {poster && (
-              // self-start, or the flex row stretches the poster to the height
-              // of the text column and the 2:3 is lost.
-              <div className="relative aspect-[2/3] w-32 shrink-0 self-start overflow-hidden rounded-xl bg-ink-raised shadow-2xl ring-1 ring-ink-line sm:w-44 lg:w-52">
-                <Image
-                  src={poster}
-                  alt={`${movie.title} poster`}
-                  fill
-                  sizes="(max-width: 640px) 8rem, (max-width: 1024px) 11rem, 13rem"
-                  className="object-cover"
-                />
-              </div>
-            )}
+          {/* Held dark under the copy and dropped early, so the right of the
+              frame is still the film. The hero's stops, carried a little
+              further across (55% / 88% rather than 42% / 78%) because without
+              a poster the writing now reaches `max-w-3xl` — the ink has to
+              cover what the poster used to. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-ink from-10% via-ink/55 via-55% to-transparent to-88%" />
+          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/25 via-32% to-transparent to-72%" />
 
-            <div className="min-w-0 flex-1 sm:pt-20 lg:pt-28">
-              <h1 className="text-3xl leading-tight font-bold text-bone sm:text-4xl lg:text-5xl">
+          <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
+            {/* No poster. The backdrop is already this film's picture, and a
+                poster beside it only bought a second image at the cost of the
+                width the writing needed. `max-w-3xl` is the readable end of
+                that width — the gradient below is tuned to hold ink that far
+                across so the overview never runs onto bright artwork. */}
+            <div className="max-w-3xl">
+              <h1 className="text-3xl leading-[1.05] font-bold text-bone sm:text-4xl lg:text-5xl">
                 {movie.title}
               </h1>
 
-              <p className="meta mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-                {movie.release_year && <span>{movie.release_year}</span>}
-                {runtime && <span>{runtime}</span>}
-                {movie.vote_average !== null && (
-                  <span className="inline-flex items-center gap-1 text-lamp">
-                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.45L12 17.45l-5.8 3.05 1.1-6.45-4.7-4.6 6.5-.95z"
-                        fill="currentColor"
-                      />
-                    </svg>
-                    {movie.vote_average.toFixed(1)}
-                    {votes && <span className="text-bone-dim">({votes})</span>}
-                  </span>
-                )}
-              </p>
+              <MovieMeta movie={movie} className="mt-3" />
 
               {movie.tagline && (
-                <p className="mt-5 text-[0.95rem] leading-snug text-lamp/90 italic">
+                <p className="mt-4 text-[0.95rem] leading-snug text-lamp/90 italic">
                   {movie.tagline}
                 </p>
               )}
 
-              {movie.overview && (
-                <p className="mt-5 max-w-2xl leading-relaxed text-bone-soft">
-                  {movie.overview}
-                </p>
-              )}
+              {/*
+                Rating comes before the synopsis, not after it.
 
-              {movie.genres.length > 0 && (
-                <ul className="mt-6 flex flex-wrap gap-2">
-                  {movie.genres.map((genre) => (
-                    <li
-                      key={genre}
-                      className="rounded-full border border-ink-line px-3 py-1 text-xs font-medium text-bone-soft"
-                    >
-                      {genre}
-                    </li>
-                  ))}
-                </ul>
-              )}
+                Rating films is what this site is for — the catalog and Kino
+                both run on the scores collected here — so the control that
+                does it is the first thing under the title rather than a
+                footnote below the copy.
 
-              <div className="mt-8 flex flex-wrap items-end gap-x-8 gap-y-5 border-t border-ink-line pt-7">
-                <div className="flex flex-col gap-2">
-                  <span className="label">Your rating</span>
+                Nothing frames it: a card on top of a photograph has to be dark
+                enough to survive a bright frame, which makes it a black slab on
+                a dark one, and it drew a box instead of drawing the eye. The
+                stars carry it alone — 32px, gold, the only thing on the page at
+                that size — with the score beside them in place of a heading.
+              */}
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-5">
+                  <AskAboutButton title={movie.title} />
                   <StarRating
                     movieId={movie.id}
                     rating={ratings.get(movie.id) ?? null}
-                    size="lg"
+                    size="xl"
+                    showValue
                   />
-                </div>
-                <AskAboutButton title={movie.title} />
               </div>
+
+              {movie.overview && (
+                <p className="mt-6 leading-relaxed text-bone-soft">{movie.overview}</p>
+              )}
             </div>
           </div>
-        </div>
+        </section>
 
         {/* Omitted rather than shown empty: a film with no vector, or one whose
             neighbours all left the catalog, has nothing to say here. */}
@@ -210,7 +174,6 @@ export default async function MoviePage({ params }: PageProps) {
           <div className="page-container pt-14 sm:pt-16">
             <CarouselRow
               title="More like this"
-              note="found by meaning"
               movies={related}
               ratings={ratingsById}
             />
