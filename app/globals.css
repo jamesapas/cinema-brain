@@ -304,6 +304,68 @@ button:disabled {
   animation: scrim-in 180ms ease-out both;
 }
 
+/* The search overlay drops in from slightly above, where it came from. */
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.75rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.palette-in {
+  animation: palette-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Results arrive as a group once the request lands, not one by one. */
+@keyframes result-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.result-in {
+  animation: result-in 160ms ease-out both;
+}
+
+/*
+ * The chrome shared by every summoned panel — the search overlay and Kino.
+ * One definition, because two panels seen back to back drift apart the first
+ * time either is touched.
+ */
+.overlay-card {
+  overflow: hidden;
+  /* Tailwind's rounded-xl and shadow-2xl, written out: this file states values
+     rather than leaning on theme vars, and these two must not silently differ
+     from the utilities the rest of the app uses. */
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-ink-line);
+  background-color: var(--color-ink-raised);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+/*
+ * Scrolls, but without the bar. Firefox and the old IE model each need their
+ * own property, and WebKit/Blink only answer to the pseudo-element — all three
+ * are required for this to hold everywhere.
+ */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

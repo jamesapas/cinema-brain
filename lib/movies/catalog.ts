@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import type { MovieCard } from "@/lib/movies/images";
 import { searchByMeaning } from "@/lib/movies/search";
+import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
 
 // Presentation helpers live in images.ts so client components can use them
 // without pulling this module's server-only dependencies. Re-exported here for
@@ -109,6 +110,89 @@ export async function getRatingsByMovie(
     if (row.rating !== null) entries.push([row.movie_id, row.rating]);
   }
   return new Map(entries);
+}
+
+/**
+ * `%` and `_` are wildcards in LIKE, so a query containing them would quietly
+ * mean something other than what was typed.
+ */
+function escapeLikePattern(term: string): string {
+  return term.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+export type TitleSearch = {
+  movies: MovieCard[];
+  /** True when another page exists past the one returned. */
+  hasMore: boolean;
+};
+
+/**
+ * Title search, served by the trigram index on `movies.title`.
+ *
+ * Postgres, not vectors: at this size the question a search box gets asked is
+ * "do you have this film", which is a lookup. Describing a film you can't name
+ * is what the agent's semantic tool is for.
+ *
+ * Results come back by popularity, then get re-ranked into three tiers: an
+ * exact title, then titles starting with the query, then titles merely
+ * containing it. Popularity alone puts Her fifth behind Hereditary and
+ * Hercules when you type "her", which is the wrong answer to an exact name.
+ * Doing the re-rank in memory keeps this to one query and needs no database
+ * function.
+ *
+ * `offset` pages the same ordering for the overlay's infinite scroll. The tier
+ * re-rank applies within the returned window, which is what you want: the
+ * window is a contiguous slice of one global popularity order, so paging never
+ * repeats or skips a row, and the exact-title promotion still lands on the
+ * first page where it matters.
+ */
+export async function searchMoviesByTitle(
+  supabase: SupabaseClient<Database>,
+  query: string,
+  limit = 60,
+  offset = 0,
+): Promise<TitleSearch> {
+  const term = query.trim();
+  if (term.length < MIN_SEARCH_LENGTH) return { movies: [], hasMore: false };
+
+  const pattern = `%${escapeLikePattern(term)}%`;
+
+  // One row past the window is how we know another page exists without paying
+  // for a count over 104k rows.
+  const { data, error } = await supabase
+    .from("movies")
+    .select(CARD_SELECT)
+    .ilike("title", pattern)
+    .order("popularity", { ascending: false, nullsFirst: false })
+    // Popularity ties are common and Postgres makes no promise about their
+    // order between queries. Without a unique tiebreak, two overlapping
+    // windows can hand back the same film twice and drop another entirely.
+    .order("id", { ascending: true })
+    .range(offset, offset + limit);
+
+  if (error) throw new Error(`Search failed: ${error.message}`);
+
+  const rows = withPoster(data ?? []);
+  const hasMore = (data?.length ?? 0) > limit;
+
+  const lower = term.toLowerCase();
+  const exact: MovieCard[] = [];
+  const startsWith: MovieCard[] = [];
+  const contains: MovieCard[] = [];
+
+  for (const row of rows) {
+    const title = row.title.toLowerCase();
+    if (title === lower) exact.push(row);
+    else if (title.startsWith(lower)) startsWith.push(row);
+    else contains.push(row);
+  }
+
+  // Each tier stays in popularity order, so two films sharing a title still
+  // come back best-known first.
+  return {
+    movies: [...exact, ...startsWith, ...contains].slice(0, limit),
+    hasMore,
+  };
 }
 
 export type RatedMovie = {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 
+import { KinoMark } from "@/app/components/kino-mark";
 import type { ChatEvent, ToolCallTrace } from "@/lib/agent/chat";
 
 /**
@@ -71,10 +72,17 @@ const EXAMPLE_PROMPTS = [
 ];
 
 /**
- * The conversation itself, with no page chrome — it fills whatever container it
- * is given, so the drawer owns the framing.
+ * The conversation, rendered as the overlay's two cards: you ask in the bar on
+ * top, Kino answers in the card beneath. It returns a fragment rather than a
+ * wrapper so the panel above owns the stacking and the gap.
  */
-export function ChatConversation({ seedPrompt }: { seedPrompt?: string | null }) {
+export function ChatConversation({
+  seedPrompt,
+  onClose,
+}: {
+  seedPrompt?: string | null;
+  onClose: () => void;
+}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -205,30 +213,77 @@ export function ChatConversation({ seedPrompt }: { seedPrompt?: string | null })
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-        {turns.length === 0 ? (
-          <div>
-            <p className="font-prose leading-relaxed text-bone-soft">
-              Ask for something specific — a mood, a constraint, or just what to watch.
-              Answers come from the catalog and your ratings.
-            </p>
-            <p className="label mt-6">Try</p>
-            <ul className="mt-2 flex flex-col items-start gap-2">
-              {EXAMPLE_PROMPTS.map((prompt) => (
-                <li key={prompt}>
-                  <button
-                    type="button"
-                    onClick={() => void send(prompt)}
-                    className="text-left font-prose text-bone-soft underline decoration-ink-line underline-offset-4 transition-colors hover:text-bone hover:decoration-lamp"
-                  >
-                    {prompt}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
+    <>
+      {/* The bar you ask from. Kino's mark sits where search puts its
+          magnifier, so the two panels open the same way. */}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send(draft);
+        }}
+        className="overlay-card flex shrink-0 items-end gap-3 px-4 py-3"
+      >
+        <KinoMark size={22} className="mb-1.5 shrink-0 text-lamp" />
+        <textarea
+          ref={inputRef}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void send(draft);
+            }
+          }}
+          rows={1}
+          placeholder="Ask Kino for a film…"
+          aria-label="Ask Kino for a film"
+          disabled={streaming}
+          className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent py-1.5 font-prose text-bone placeholder:text-bone-dim/60 focus:outline-none disabled:opacity-50"
+        />
+        <button
+          type="submit"
+          disabled={streaming || draft.trim().length === 0}
+          className="btn btn-quiet mb-0.5 shrink-0 px-4 py-2"
+        >
+          {streaming ? "Working…" : "Ask"}
+        </button>
+      </form>
+
+      <div className="overlay-card flex max-h-[70vh] min-h-0 flex-col">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-ink-line px-4 py-2.5">
+          <span className="label">Kino</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="meta transition-colors hover:text-bone"
+          >
+            Close
+          </button>
+        </header>
+
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          {turns.length === 0 ? (
+            <div>
+              <p className="font-prose leading-relaxed text-bone-soft">
+                Ask for something specific — a mood, a constraint, or just what to watch.
+                Answers come from the catalog and your ratings.
+              </p>
+              <p className="label mt-6">Try</p>
+              <ul className="mt-2 flex flex-col items-start gap-2">
+                {EXAMPLE_PROMPTS.map((prompt) => (
+                  <li key={prompt}>
+                    <button
+                      type="button"
+                      onClick={() => void send(prompt)}
+                      className="text-left font-prose text-bone-soft underline decoration-ink-line underline-offset-4 transition-colors hover:text-bone hover:decoration-lamp"
+                    >
+                      {prompt}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
           <div className="flex flex-col gap-8">
             {turns.map((turn, index) =>
               turn.role === "user" ? (
@@ -240,7 +295,10 @@ export function ChatConversation({ seedPrompt }: { seedPrompt?: string | null })
                 </article>
               ) : (
                 <article key={index}>
-                  <p className="label">Cinema Brain</p>
+                  <p className="label flex items-center gap-1.5 text-lamp">
+                    <KinoMark size={13} className="shrink-0" />
+                    Kino
+                  </p>
 
                   {turn.content ? (
                     <div className="prose-notes mt-2 font-prose text-sm text-bone-soft">
@@ -302,42 +360,11 @@ export function ChatConversation({ seedPrompt }: { seedPrompt?: string | null })
                 </article>
               ),
             )}
-            <div ref={endRef} />
-          </div>
-        )}
+              <div ref={endRef} />
+            </div>
+          )}
+        </div>
       </div>
-
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void send(draft);
-        }}
-        className="flex shrink-0 items-end gap-3 border-t border-ink-line px-5 py-4"
-      >
-        <textarea
-          ref={inputRef}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send(draft);
-            }
-          }}
-          rows={1}
-          placeholder="Ask for a film…"
-          aria-label="Ask for a film"
-          disabled={streaming}
-          className="max-h-32 min-h-[2.5rem] flex-1 resize-none bg-transparent py-1.5 font-prose text-bone placeholder:text-bone-dim/60 focus:outline-none disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={streaming || draft.trim().length === 0}
-          className="btn btn-quiet shrink-0 px-4 py-2"
-        >
-          {streaming ? "Working…" : "Ask"}
-        </button>
-      </form>
-    </div>
+    </>
   );
 }

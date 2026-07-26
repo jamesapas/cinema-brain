@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { AskAboutButton } from "@/app/components/chat-drawer";
+import { AskAboutButton } from "@/app/components/chat-overlay";
 import { StarRating } from "@/app/components/star-rating";
 import {
   backdropUrl,

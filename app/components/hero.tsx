@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-import { AskAboutButton } from "@/app/components/chat-drawer";
+import { AskAboutButton } from "@/app/components/chat-overlay";
 import { MoreInfoButton } from "@/app/components/movie-details";
 import { StarRating } from "@/app/components/star-rating";
 import { backdropUrl, metaLine, type MovieCard } from "@/lib/movies/images";

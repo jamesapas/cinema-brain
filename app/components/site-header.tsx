@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
+import { useSearchOverlay } from "@/app/components/search-overlay";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 /**
@@ -58,15 +59,7 @@ export function SiteHeader({
         <div className="flex items-center gap-1.5">
           <NavLink href="/" icon="lucide:house" label="Home" />
 
-          {/* No search yet. The control is here so the shape of the bar
-              doesn't change when it arrives; wire it up then. */}
-          <button
-            type="button"
-            aria-label="Search"
-            className={ICON_CONTROL}
-          >
-            <Icon icon="iconamoon:search" width={24} height={24} aria-hidden />
-          </button>
+          <SearchButton />
 
           <AccountMenu
             email={email}
@@ -77,6 +70,26 @@ export function SiteHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Opens the search overlay rather than navigating. Finding a film is usually a
+ * detour, so it shouldn't cost you the page you were on.
+ */
+function SearchButton() {
+  const openSearch = useSearchOverlay();
+
+  return (
+    <button
+      type="button"
+      onClick={openSearch}
+      aria-label="Search films"
+      aria-keyshortcuts="Meta+K Control+K"
+      className={ICON_CONTROL}
+    >
+      <Icon icon="iconamoon:search" width={24} height={24} aria-hidden />
+    </button>
   );
 }
 
