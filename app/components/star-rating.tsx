@@ -24,7 +24,10 @@ export function StarRating({
   const [saved, setSaved] = useState<number | null>(rating);
   const [preview, setPreview] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  // Only startTransition is used. There is deliberately no busy state: the
+  // stars are already showing the new rating, so dimming them while the write
+  // lands would be telling you the thing you can see happened hasn't.
+  const [, startTransition] = useTransition();
 
   const shown = preview ?? saved ?? 0;
   const starPx = size === "lg" ? 22 : 15;
@@ -35,6 +38,9 @@ export function StarRating({
     // misclick without a separate control.
     const next = value === saved ? null : value;
 
+    // Optimistic: the stars move now and stay put. The write is only ever
+    // visible again if it fails, in which case the value below rolls back and
+    // says why.
     setSaved(next);
     setError(null);
 
@@ -54,7 +60,7 @@ export function StarRating({
         aria-label={
           saved === null ? "Rate this film" : `Your rating: ${saved / 2} of 5 stars`
         }
-        className={`flex items-center gap-px ${pending ? "opacity-60" : ""}`}
+        className="flex items-center gap-px"
         onMouseLeave={() => setPreview(null)}
       >
         {[1, 2, 3, 4, 5].map((star) => {

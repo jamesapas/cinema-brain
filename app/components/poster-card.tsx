@@ -64,7 +64,7 @@ export function PosterCard({
       <div className="mt-2.5 space-y-1">
         {/* Clamped to two lines and reserving both, so a long title neither
             overflows nor pushes this card's stars below its neighbours'. */}
-        <h3 className="line-clamp-2 text-sm leading-snug font-semibold text-bone">
+        <h3 className="line-clamp-1 text-sm leading-snug font-semibold text-bone">
           {movie.title}
         </h3>
         {meta && <p className="meta mt-0.5 !text-xs">{meta}</p>}
