@@ -12,6 +12,7 @@
     "sync:movies": "tsx scripts/sync-movies.ts",
     "pinecone:setup": "tsx scripts/setup-pinecone.ts",
     "embed:movies": "tsx scripts/embed-movies.ts",
+    "verify:catalog": "tsx scripts/verify-catalog.ts",
     "seed:test-user": "tsx scripts/seed-test-user.ts",
     "chat": "tsx scripts/chat.ts",
     "db:types": "npx --yes supabase gen types typescript --project-id lwuycdhoilckrxymjokq > lib/database.types.ts.new && mv lib/database.types.ts.new lib/database.types.ts"

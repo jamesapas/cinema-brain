@@ -118,6 +118,15 @@ export type DiscoverOptions = {
   sortBy?: string;
   minVoteCount?: number;
   releasedBefore?: string;
+  /**
+   * Restricts the query to one release year.
+   *
+   * This is how the catalog gets past TMDB's hard limit of 500 pages (10,000
+   * results) per query: each year is its own query with its own window. The
+   * busiest year on record holds ~3,600 films at 10+ votes, so no year needs
+   * splitting further.
+   */
+  primaryReleaseYear?: number;
   language?: string;
 };
 
@@ -126,6 +135,7 @@ export function discoverMovies({
   sortBy = "popularity.desc",
   minVoteCount = 100,
   releasedBefore,
+  primaryReleaseYear,
   language = "en-US",
 }: DiscoverOptions = {}): Promise<TmdbDiscoverResponse> {
   return tmdbFetch<TmdbDiscoverResponse>("/discover/movie", {
@@ -133,6 +143,7 @@ export function discoverMovies({
     sort_by: sortBy,
     "vote_count.gte": minVoteCount,
     "primary_release_date.lte": releasedBefore,
+    primary_release_year: primaryReleaseYear,
     include_adult: false,
     include_video: false,
     language,

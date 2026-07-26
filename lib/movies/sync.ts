@@ -137,6 +137,63 @@ async function upsertBatch(
   return stale.length;
 }
 
+/**
+ * Fetches one discover page, hydrates each movie's details, and upserts them.
+ * Returns the discover response so the caller can read `total_pages`.
+ */
+async function syncOnePage(
+  supabase: SupabaseClient<Database>,
+  discoverOptions: DiscoverOptions,
+  page: number,
+  result: SyncResult,
+  onProgress: (message: string) => void,
+) {
+  const discovered = await discoverMovies({ ...discoverOptions, page });
+  result.pagesFetched++;
+  result.moviesSeen += discovered.results.length;
+
+  // Details give us runtime, tagline, imdb_id and genre names, which the
+  // discover response omits.
+  const details = await mapWithConcurrency(
+    discovered.results,
+    DETAIL_CONCURRENCY,
+    async (movie) => {
+      try {
+        return await getMovieDetails(movie.id);
+      } catch (error) {
+        if (error instanceof TmdbError && error.isNotFound) {
+          onProgress(`skipping ${movie.id} (${movie.title}): not found on TMDB`);
+          return null;
+        }
+        throw error;
+      }
+    },
+  );
+
+  const rows = details
+    .filter((entry): entry is TmdbMovieDetails => entry !== null)
+    .map(mapDetailsToRow);
+
+  result.skipped += discovered.results.length - rows.length;
+
+  for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
+    result.needsEmbedding += await upsertBatch(supabase, batch);
+    result.moviesUpserted += batch.length;
+  }
+
+  return { discovered, upserted: rows.length };
+}
+
+function emptyResult(): SyncResult {
+  return {
+    pagesFetched: 0,
+    moviesSeen: 0,
+    moviesUpserted: 0,
+    needsEmbedding: 0,
+    skipped: 0,
+  };
+}
+
 export async function syncMovies(
   supabase: SupabaseClient<Database>,
   {
@@ -147,13 +204,7 @@ export async function syncMovies(
     onProgress = () => {},
   }: SyncOptions = {},
 ): Promise<SyncResult> {
-  const result: SyncResult = {
-    pagesFetched: 0,
-    moviesSeen: 0,
-    moviesUpserted: 0,
-    needsEmbedding: 0,
-    skipped: 0,
-  };
+  const result = emptyResult();
 
   // Pin the window so later pages can't shift under us as popularity changes
   // mid-run, which would otherwise duplicate or skip titles.
@@ -162,50 +213,93 @@ export async function syncMovies(
 
   for (let offset = 0; offset < pages; offset++) {
     const page = startPage + offset;
-    const discovered = await discoverMovies({ ...discoverOptions, page });
-    result.pagesFetched++;
+
+    // Peek before committing to the work: a page past the end returns nothing
+    // useful and we'd rather say so than silently loop.
+    const { discovered, upserted } = await syncOnePage(
+      supabase,
+      discoverOptions,
+      page,
+      result,
+      onProgress,
+    );
 
     if (page > discovered.total_pages) {
       onProgress(`page ${page} is past the last page (${discovered.total_pages}) — stopping`);
       break;
     }
 
-    result.moviesSeen += discovered.results.length;
-
-    // Details give us runtime, tagline, imdb_id and genre names, which the
-    // discover response omits.
-    const details = await mapWithConcurrency(
-      discovered.results,
-      DETAIL_CONCURRENCY,
-      async (movie) => {
-        try {
-          return await getMovieDetails(movie.id);
-        } catch (error) {
-          if (error instanceof TmdbError && error.isNotFound) {
-            onProgress(`skipping ${movie.id} (${movie.title}): not found on TMDB`);
-            return null;
-          }
-          throw error;
-        }
-      },
-    );
-
-    const rows = details
-      .filter((entry): entry is TmdbMovieDetails => entry !== null)
-      .map(mapDetailsToRow);
-
-    result.skipped += discovered.results.length - rows.length;
-
-    for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
-      result.needsEmbedding += await upsertBatch(supabase, batch);
-      result.moviesUpserted += batch.length;
-    }
-
     onProgress(
       `page ${page}/${Math.min(startPage + pages - 1, discovered.total_pages)}: ` +
-        `${rows.length} movies upserted`,
+        `${upserted} movies upserted`,
     );
   }
 
   return result;
+}
+
+/** TMDB refuses any page above this, whatever the result count says. */
+const MAX_DISCOVER_PAGE = 500;
+
+export type YearSyncOptions = {
+  fromYear: number;
+  toYear: number;
+  minVoteCount?: number;
+  onProgress?: (message: string) => void;
+  /** Called after each year finishes, so a long run can report as it goes. */
+  onYearDone?: (year: number, result: SyncResult) => void;
+};
+
+/**
+ * Syncs a range of release years, newest first.
+ *
+ * One discover query per year, which is what gets the catalog past TMDB's
+ * 500-page ceiling: the ceiling applies per query, and no single year comes
+ * close to it at any sane vote threshold. Newest first so an interrupted run
+ * still leaves the films people are most likely to look for.
+ *
+ * Interrupted runs resume by re-running with `--to-year` set to the year it
+ * stopped on; the upsert is keyed on TMDB's id, so overlap costs time, not
+ * correctness.
+ */
+export async function syncMoviesByYear(
+  supabase: SupabaseClient<Database>,
+  { fromYear, toYear, minVoteCount = 10, onProgress = () => {}, onYearDone = () => {} }: YearSyncOptions,
+): Promise<SyncResult> {
+  const total = emptyResult();
+  const releasedBefore = new Date().toISOString().slice(0, 10);
+
+  for (let year = toYear; year >= fromYear; year--) {
+    const yearResult = emptyResult();
+    const discoverOptions: DiscoverOptions = {
+      minVoteCount,
+      releasedBefore,
+      primaryReleaseYear: year,
+    };
+
+    // Page 1 tells us how many there are; the rest follow.
+    const first = await syncOnePage(supabase, discoverOptions, 1, yearResult, onProgress);
+    const pages = Math.min(first.discovered.total_pages, MAX_DISCOVER_PAGE);
+
+    for (let page = 2; page <= pages; page++) {
+      await syncOnePage(supabase, discoverOptions, page, yearResult, onProgress);
+    }
+
+    if (first.discovered.total_pages > MAX_DISCOVER_PAGE) {
+      onProgress(
+        `${year}: ${first.discovered.total_results} results exceed the ${MAX_DISCOVER_PAGE}-page ` +
+          `cap — ${(first.discovered.total_pages - MAX_DISCOVER_PAGE) * 20} not reachable`,
+      );
+    }
+
+    total.pagesFetched += yearResult.pagesFetched;
+    total.moviesSeen += yearResult.moviesSeen;
+    total.moviesUpserted += yearResult.moviesUpserted;
+    total.needsEmbedding += yearResult.needsEmbedding;
+    total.skipped += yearResult.skipped;
+
+    onYearDone(year, yearResult);
+  }
+
+  return total;
 }
