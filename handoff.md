@@ -200,6 +200,14 @@ npm run db:types         # regenerate lib/database.types.ts after a migration
     window into the model choosing its own tools, and it was cut because it read as Kino
     narrating his process.
 
+18. **Phone-sized posters (2026-07-26).** Below `sm` a poster card was 10.5rem, which at 390px
+    fitted **1.86 cards** — a shelf read as one film and a sliver, with no cue that it scrolled.
+    Cards are now 8rem there (**2.38 visible**), gap 3, title `text-xs`, meta 11px. The stars
+    shrank with them: `StarRating` sizes by *class* now, not an inline `width`, so the new `card`
+    size can be `size-4 sm:size-[22px]` — five 22px stars are 114px, which was the entire width of
+    a 128px card. `sm`/`lg` are unchanged and `sm:` restores every old value, so **≥640px renders
+    byte-identically** (verified: card 224px / star 22px at 1440, 200/22 at 768 and 640).
+
 ## Verifying UI
 
 There is a working browser loop, and it should be used before claiming any visual change works.

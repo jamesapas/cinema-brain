@@ -29,7 +29,8 @@ export function PosterCard({
 }) {
   const openDetails = useMovieDetails();
   // w500 rather than w342: the card is up to 224px wide, which a 342px source
-  // can't cover on a 2x display.
+  // can't cover on a 2x display. Still w500 on phones — the card is smaller
+  // there, but the pixel ratio is higher.
   const src = posterUrl(movie.poster_path, "w500");
   if (!src) return null;
 
@@ -41,13 +42,17 @@ export function PosterCard({
     .join(" · ");
 
   return (
-    <article className="group w-[10.5rem] shrink-0 snap-start sm:w-[12.5rem] lg:w-[14rem]">
+    // 8rem on a phone rather than 10.5: at 10.5 a 390px screen fitted 1.9
+    // posters, so a shelf read as one film with a sliver of the next and gave
+    // no sense of being a row. 8rem puts 2.5 in view, which is what makes it
+    // legible as something to scroll.
+    <article className="group w-[8rem] shrink-0 snap-start sm:w-[12.5rem] lg:w-[14rem]">
       <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-ink-raised ring-1 ring-ink-line transition-[box-shadow,filter] duration-200">
         <Image
           src={src}
           alt={`${movie.title} poster`}
           fill
-          sizes="(max-width: 640px) 10.5rem, (max-width: 1024px) 12.5rem, 14rem"
+          sizes="(max-width: 640px) 8rem, (max-width: 1024px) 12.5rem, 14rem"
           priority={priority}
           className="object-cover group-hover:scale-105 transition-all duration-300"
         />
@@ -61,16 +66,18 @@ export function PosterCard({
         </button>
       </div>
 
-      <div className="mt-2.5 space-y-1">
+      <div className="mt-2 space-y-1 sm:mt-2.5">
         {/* Clamped to two lines and reserving both, so a long title neither
             overflows nor pushes this card's stars below its neighbours'. */}
-        <h3 className="line-clamp-1 text-sm leading-snug font-semibold text-bone">
+        <h3 className="line-clamp-1 text-xs leading-snug font-semibold text-bone sm:text-sm">
           {movie.title}
         </h3>
-        {meta && <p className="meta mt-0.5 !text-xs">{meta}</p>}
+        {meta && <p className="meta mt-0.5 !text-[0.6875rem] sm:!text-xs">{meta}</p>}
 
-        <div className="mt-2">
-          <StarRating movieId={movie.id} rating={rating} size="lg" />
+        <div className="mt-1.5 sm:mt-2">
+          {/* "card" rather than "lg": five 22px stars are 114px, which on a
+              128px phone card is the whole width. */}
+          <StarRating movieId={movie.id} rating={rating} size="card" />
         </div>
       </div>
     </article>

@@ -11,6 +11,18 @@ import { clearRating, rateMovie } from "@/app/actions/rate-movie";
  * Every half is its own button rather than one pointer-position calculation, so
  * it works by keyboard and touch, not just precise mouse aim.
  */
+/**
+ * Star box sizes. `card` is the only responsive one: a poster is 8rem on a
+ * phone and 14rem from `lg`, and stars that don't shrink with it take the whole
+ * card. Sized by class rather than an inline `width`, which can't hold a
+ * breakpoint.
+ */
+const SIZE_CLASS = {
+  sm: "size-[15px]",
+  lg: "size-[22px]",
+  card: "size-4 sm:size-[22px]",
+} as const;
+
 export function StarRating({
   movieId,
   rating,
@@ -19,7 +31,7 @@ export function StarRating({
   movieId: number;
   /** Stored 1-10 value, or null when unrated. */
   rating: number | null;
-  size?: "sm" | "lg";
+  size?: keyof typeof SIZE_CLASS;
 }) {
   const [saved, setSaved] = useState<number | null>(rating);
   const [preview, setPreview] = useState<number | null>(null);
@@ -30,7 +42,6 @@ export function StarRating({
   const [, startTransition] = useTransition();
 
   const shown = preview ?? saved ?? 0;
-  const starPx = size === "lg" ? 22 : 15;
 
   function submit(value: number) {
     const previous = saved;
@@ -67,12 +78,8 @@ export function StarRating({
           const leftValue = star * 2 - 1;
           const rightValue = star * 2;
           return (
-            <span
-              key={star}
-              className="relative inline-block"
-              style={{ width: starPx, height: starPx }}
-            >
-              <StarGlyph fill={fillFor(shown, star)} px={starPx} />
+            <span key={star} className={`relative inline-block ${SIZE_CLASS[size]}`}>
+              <StarGlyph fill={fillFor(shown, star)} />
               {/* Two invisible hit targets per star: left half, right half. */}
               <button
                 type="button"
@@ -111,17 +118,16 @@ function fillFor(shown: number, star: number): Fill {
   return "empty";
 }
 
-function StarGlyph({ fill, px }: { fill: Fill; px: number }) {
+function StarGlyph({ fill }: { fill: Fill }) {
   // useId, not a random string: a random gradient id differs between the server
   // and client renders and trips a hydration mismatch.
   const id = `star-half-${useId()}`;
   return (
     <svg
-      width={px}
-      height={px}
       viewBox="0 0 24 24"
       aria-hidden="true"
-      className="pointer-events-none block"
+      // Fills the span, which is what carries the (possibly responsive) size.
+      className="pointer-events-none block h-full w-full"
     >
       {fill === "half" && (
         <defs>

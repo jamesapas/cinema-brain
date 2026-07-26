@@ -97,7 +97,7 @@ export function CarouselRow({
       <div className="relative">
         <div
           ref={trackRef}
-          className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pt-1 pb-4"
+          className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pt-1 pb-4 sm:gap-4"
         >
           {movies.map((movie, index) => (
             <PosterCard
