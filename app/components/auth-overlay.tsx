@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { normalizeUsername, USERNAME_MAX, usernameProblem } from "@/lib/auth/username";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 /**
@@ -104,6 +105,8 @@ function readableAuthError(code: string | undefined, message: string): string {
       return "That password is too weak. Use at least six characters.";
     case "email_address_invalid":
       return "That email address was rejected. Use an address you can receive mail at.";
+    case "username_taken":
+      return "That username is taken. Try another.";
     case "email_not_confirmed":
       return "Confirm your email address first — check your inbox for the link.";
     default:
@@ -114,22 +117,25 @@ function readableAuthError(code: string | undefined, message: string): string {
 function AuthOverlay({ reason, onClose }: { reason: string | null; onClose: () => void }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
-  const [email, setEmail] = useState("");
+  /** Signing in this is an email *or* a username; signing up it is the email. */
+  const [identifier, setIdentifier] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const emailRef = useRef<HTMLInputElement>(null);
+  const firstFieldRef = useRef<HTMLInputElement>(null);
 
   // Straight into the first field, the way search opens focused on its box.
   useEffect(() => {
-    emailRef.current?.focus();
+    firstFieldRef.current?.focus();
   }, []);
 
   function switchMode() {
     setMode(mode === "signin" ? "signup" : "signin");
+    setUsername("");
     setConfirmPassword("");
     setError(null);
     setNotice(null);
@@ -140,48 +146,109 @@ function AuthOverlay({ reason, onClose }: { reason: string | null; onClose: () =
     setError(null);
     setNotice(null);
 
-    // Checked before the request so a typo costs nothing and the message can
-    // name the actual problem.
-    if (mode === "signup" && password !== confirmPassword) {
+    if (mode === "signin") {
+      await signIn();
+      return;
+    }
+    await signUp();
+  }
+
+  /**
+   * Through the route rather than the browser client, because a username has
+   * to be resolved to an email under service role before Supabase Auth will
+   * take it. The route sets the same cookies the browser client would have.
+   */
+  async function signIn() {
+    setBusy(true);
+
+    const response = await fetch("/api/auth/sign-in", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ identifier, password }),
+    });
+    const result = (await response.json().catch(() => null)) as {
+      error?: string;
+      code?: string | null;
+    } | null;
+
+    if (!response.ok) {
+      setError(
+        result?.error
+          ? readableAuthError(result.code ?? undefined, result.error)
+          : "Signing in failed. Try again.",
+      );
+      setBusy(false);
+      return;
+    }
+
+    finish();
+  }
+
+  async function signUp() {
+    // Both checked before the request so a typo costs nothing and the message
+    // can name the actual problem.
+    if (password !== confirmPassword) {
       setError("Those passwords don't match. Retype them and try again.");
+      return;
+    }
+
+    const handle = normalizeUsername(username);
+    const problem = usernameProblem(handle);
+    if (problem) {
+      setError(problem);
       return;
     }
 
     setBusy(true);
     const supabase = createBrowserSupabase();
 
-    if (mode === "signin") {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (signInError) {
-        setError(readableAuthError(signInError.code, signInError.message));
-        setBusy(false);
-        return;
-      }
-    } else {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (signUpError) {
-        setError(readableAuthError(signUpError.code, signUpError.message));
-        setBusy(false);
-        return;
-      }
-      if (!data.session) {
-        setNotice("Account created. Confirm your email address, then sign in.");
-        setMode("signin");
-        setConfirmPassword("");
-        setBusy(false);
-        return;
-      }
+    // Asked up front: the unique index would otherwise fail the whole account
+    // creation inside the signup trigger, which surfaces as a database error
+    // rather than something about the name they picked.
+    const { data: available, error: availabilityError } = await supabase.rpc(
+      "username_available",
+      { candidate: handle },
+    );
+    if (availabilityError) {
+      setError("Couldn't check that username. Try again.");
+      setBusy(false);
+      return;
+    }
+    if (!available) {
+      setError(readableAuthError("username_taken", ""));
+      setBusy(false);
+      return;
     }
 
-    // The browser client has written the auth cookies. No navigation: refresh
-    // re-renders the page underneath with a session, and closing the panel
-    // hands it back exactly as it was, now signed in.
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: identifier.trim(),
+      password,
+      // Read by the signup trigger, which is what writes the profile row.
+      options: { data: { username: handle } },
+    });
+    if (signUpError) {
+      setError(readableAuthError(signUpError.code, signUpError.message));
+      setBusy(false);
+      return;
+    }
+    if (!data.session) {
+      setNotice("Account created. Confirm your email address, then sign in.");
+      setMode("signin");
+      setUsername("");
+      setConfirmPassword("");
+      setBusy(false);
+      return;
+    }
+
+    finish();
+  }
+
+  /**
+   * The auth cookies are written by now. No navigation: refresh re-renders the
+   * page underneath with a session, and closing the panel hands it back
+   * exactly as it was, now signed in.
+   */
+  function finish() {
     onClose();
     router.refresh();
   }
@@ -222,16 +289,29 @@ function AuthOverlay({ reason, onClose }: { reason: string | null; onClose: () =
         </div>
 
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3.5">
+          {/* One box signing in, because either identifier lands in the same
+              place; two signing up, because both are being chosen. */}
           <TextField
-            id="email"
-            label="Email"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            placeholder="you@example.com"
-            autoComplete="email"
-            inputRef={emailRef}
+            id="identifier"
+            label={mode === "signin" ? "Email or username" : "Email"}
+            type={mode === "signin" ? "text" : "email"}
+            value={identifier}
+            onChange={setIdentifier}
+            autoComplete={mode === "signin" ? "username" : "email"}
+            inputRef={firstFieldRef}
           />
+
+          {mode === "signup" && (
+            <TextField
+              id="username"
+              label="Username"
+              type="text"
+              value={username}
+              onChange={(value) => setUsername(normalizeUsername(value))}
+              autoComplete="username"
+              maxLength={USERNAME_MAX}
+            />
+          )}
 
           <TextField
             id="password"
@@ -297,41 +377,55 @@ function AuthOverlay({ reason, onClose }: { reason: string | null; onClose: () =
   );
 }
 
-/** Email and password share the same filled box; only the reveal differs. */
+/**
+ * Every field shares the same filled box; only the glyph and reveal differ.
+ *
+ * The name of the field is its placeholder rather than a line above it — four
+ * stacked labels made the panel read as a form to be filled out, when it is
+ * two things to type. The label element stays, visually hidden, because a
+ * placeholder is not a label to a screen reader and vanishes once you type.
+ */
 function TextField({
   id,
   label,
   type,
   value,
   onChange,
-  placeholder,
   autoComplete,
   minLength,
+  maxLength,
   inputRef,
 }: {
   id: string;
   label: string;
-  type: "email" | "password";
+  type: "email" | "password" | "text";
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
   autoComplete: string;
   minLength?: number;
+  maxLength?: number;
   inputRef?: React.Ref<HTMLInputElement>;
 }) {
   const [revealed, setRevealed] = useState(false);
   const isPassword = type === "password";
 
+  // Anything that isn't an email or a password is a person: their handle.
+  const glyph = isPassword
+    ? "lucide:lock"
+    : type === "email"
+      ? "lucide:mail"
+      : "lucide:user";
+
   return (
     <div>
-      <label htmlFor={id} className="field-label">
+      <label htmlFor={id} className="sr-only">
         {label}
       </label>
 
       <div className="relative">
         {/* The glyph marks which box is which without adding another word. */}
         <Icon
-          icon={isPassword ? "lucide:lock" : "lucide:mail"}
+          icon={glyph}
           width={17}
           height={17}
           aria-hidden
@@ -344,8 +438,9 @@ function TextField({
           type={isPassword && revealed ? "text" : type}
           required
           minLength={minLength}
+          maxLength={maxLength}
           autoComplete={autoComplete}
-          placeholder={placeholder}
+          placeholder={label}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           className={`field-input ${isPassword ? "pr-11" : ""}`}

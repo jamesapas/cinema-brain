@@ -158,6 +158,7 @@ export type Database = {
           display_name: string | null
           id: string
           updated_at: string
+          username: string
         }
         Insert: {
           avatar_path?: string | null
@@ -165,6 +166,7 @@ export type Database = {
           display_name?: string | null
           id: string
           updated_at?: string
+          username: string
         }
         Update: {
           avatar_path?: string | null
@@ -172,6 +174,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           updated_at?: string
+          username?: string
         }
         Relationships: []
       }
@@ -221,7 +224,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      username_available: { Args: { candidate: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

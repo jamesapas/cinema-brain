@@ -256,13 +256,6 @@ button:disabled {
   background-color: color-mix(in oklab, var(--color-bone) 12%, transparent);
 }
 
-.field-label {
-  display: block;
-  margin-bottom: 0.4375rem;
-  font-size: 0.8125rem;
-  color: var(--color-bone-dim);
-}
-
 /* The cursor is the only ambient motion in the interface. */
 @keyframes caret {
   0%,

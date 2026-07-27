@@ -15,6 +15,8 @@ import { getProfile, type Profile } from "@/lib/profiles/queries";
 export type Viewer = {
   id: string;
   email: string;
+  /** The handle they can also sign in with. Null only for a missing profile. */
+  username: string | null;
   /** The raw row, for the profile page's editor. Null before the trigger ran. */
   profile: Profile | null;
   /** The account's own timestamp, the fallback when there is no profile row. */
@@ -42,6 +44,7 @@ export async function getViewer(
   return {
     id: user.id,
     email,
+    username: profile?.username ?? null,
     profile,
     createdAt: user.created_at,
     displayName: displayNameFor(profile?.display_name ?? null, email),

@@ -72,6 +72,7 @@ function PencilIcon() {
 export function ProfileIdentity({
   userId,
   email,
+  username,
   name,
   displayName,
   avatarUrl,
@@ -80,6 +81,8 @@ export function ProfileIdentity({
 }: {
   userId: string;
   email: string;
+  /** Null only when the profile row is missing, the same as everywhere else. */
+  username: string | null;
   /** What to greet them by — the display name, or the email's local part. */
   name: string;
   /** The stored value, which may be null. What the field edits. */
@@ -190,6 +193,8 @@ export function ProfileIdentity({
             </button>
           </div>
           <p className="meta mt-1.5 truncate">
+            {/* The handle first: it's the part of this line anyone would type. */}
+            {username && <span className="text-bone-soft">@{username} · </span>}
             {email} · Member since {memberSince}
           </p>
         </div>

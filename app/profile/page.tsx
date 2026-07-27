@@ -52,6 +52,7 @@ export default async function ProfilePage() {
           <ProfileIdentity
             userId={viewer.id}
             email={email}
+            username={viewer.username}
             name={name}
             displayName={profile?.display_name ?? null}
             avatarUrl={picture}

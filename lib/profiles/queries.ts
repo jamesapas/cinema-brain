@@ -9,6 +9,7 @@ import type { Database } from "@/lib/database.types";
 
 export type Profile = {
   id: string;
+  username: string;
   display_name: string | null;
   avatar_path: string | null;
   created_at: string;
@@ -24,7 +25,7 @@ export async function getProfile(
 ): Promise<Profile | null> {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, display_name, avatar_path, created_at")
+    .select("id, username, display_name, avatar_path, created_at")
     .maybeSingle();
 
   if (error) throw new Error(`Failed to read profile: ${error.message}`);
