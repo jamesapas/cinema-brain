@@ -23,8 +23,17 @@ const plexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
+/**
+ * `template` suffixes the brand onto every child segment's title, so pages set
+ * only their own half — "Search" becomes "Search - Kino". The default carries
+ * the tagline because "Kino" alone is a crowded word; the home tab should say
+ * what this one is.
+ */
 export const metadata: Metadata = {
-  title: "Cinema Brain",
+  title: {
+    default: "Kino - find your next film",
+    template: "%s - Kino",
+  },
   description: "Ask for a film. The catalog answers.",
 };
 

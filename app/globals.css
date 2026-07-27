@@ -571,6 +571,23 @@ button:disabled {
   }
 }
 
+/*
+ * The 404's filmstrip.
+ *
+ * Perforations are painted with a repeating gradient rather than built out of
+ * elements, so the strip is three boxes and the holes stay on pitch at any
+ * width. Ink shows through the holes because the strip sits on ink-raised —
+ * the same relationship a real print has to the light behind it.
+ */
+.filmstrip-perf {
+  height: 0.5rem;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--color-ink) 0 0.5rem,
+    transparent 0.5rem 1.375rem
+  );
+}
+
 /* Assistant prose reads as liner notes, so give the lists room to breathe. */
 .prose-notes p {
   margin-block: 0.75rem;

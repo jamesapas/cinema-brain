@@ -47,11 +47,11 @@ const loadMovie = cache(async (id: number) => {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const id = parseMovieId((await params).id);
   const movie = id === null ? null : await loadMovie(id);
-  if (!movie) return { title: "Film not found · Cinema Brain" };
+  if (!movie) return { title: "Film not found" };
 
   const year = movie.release_year ? ` (${movie.release_year})` : "";
   return {
-    title: `${movie.title}${year} · Cinema Brain`,
+    title: `${movie.title}${year}`,
     description: movie.tagline ?? movie.overview ?? undefined,
   };
 }

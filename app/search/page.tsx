@@ -7,7 +7,7 @@ import { getRatingsByMovie, searchMoviesByTitle } from "@/lib/movies/catalog";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-export const metadata = { title: "Search · Cinema Brain" };
+export const metadata = { title: "Search" };
 
 const RESULT_LIMIT = 60;
 

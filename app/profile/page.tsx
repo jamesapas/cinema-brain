@@ -9,7 +9,7 @@ import { getRatedMovies } from "@/lib/movies/catalog";
 import { formatWatchTime, tasteStats, type StarBucket } from "@/lib/profiles/stats";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-export const metadata = { title: "Your profile · Cinema Brain" };
+export const metadata = { title: "Your profile" };
 
 /** Dates are formatted with a fixed locale so server and client agree. */
 const MONTH_YEAR = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" });

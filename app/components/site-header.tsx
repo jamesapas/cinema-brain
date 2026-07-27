@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
+import { KinoAvatar } from "@/app/components/kino-avatar";
 import { useSearchOverlay } from "@/app/components/search-overlay";
 import { useSignIn } from "@/app/components/session";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
@@ -55,11 +56,18 @@ export function SiteHeader({
       {/* The bar spans the viewport so its fill covers everything passing
           behind it; its contents stay in the page container. */}
       <div className="page-container flex items-center justify-between gap-4 py-4">
+        {/* Face and name as one lockup: the brand and the thing you talk to
+            are the same character, so the mark that opens the site is the same
+            mark that answers you in the panel. */}
         <Link
           href="/"
-          className="rounded text-lg font-bold tracking-tight text-bone transition-colors hover:text-lamp"
+          className="flex items-center gap-2 rounded text-lg font-bold tracking-tight text-bone transition-colors hover:text-lamp"
         >
-          Cinema Brain
+          {/* 32 rather than the bar's 28: the face carries transparent margin
+              the wordmark doesn't, so matching box heights leaves the mark
+              optically light against bold text. */}
+          <KinoAvatar size={32} />
+          Kino
         </Link>
 
         <div className="flex items-center gap-1.5">
