@@ -61,19 +61,18 @@ export function SiteHeader({
             mark that answers you in the panel. */}
         <Link
           href="/"
-          className="flex items-center gap-2 rounded text-lg font-bold tracking-tight text-bone transition-colors hover:text-lamp"
+          className="flex items-center gap-2 rounded text-2xl font-bold tracking-tight text-bone"
         >
-          {/* 32 rather than the bar's 28: the face carries transparent margin
-              the wordmark doesn't, so matching box heights leaves the mark
-              optically light against bold text. */}
-          <KinoAvatar size={32} />
-          Kino
+          <KinoAvatar size={40} />
+          <span className="mt-1">Kino</span>
         </Link>
 
-        <div className="flex items-center gap-1.5">
-          <NavLink href="/" icon="lucide:house" label="Home" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <NavLink href="/" icon="lucide:home" label="Home" />
 
-          <SearchButton />
+            <SearchButton />
+          </div>
 
           {email !== null ? (
             <AccountMenu
@@ -106,7 +105,7 @@ function SearchButton() {
       aria-keyshortcuts="Meta+K Control+K"
       className={ICON_CONTROL}
     >
-      <Icon icon="iconamoon:search" width={24} height={24} aria-hidden />
+      <Icon icon="lucide:search" width={25} height={25} aria-hidden />
     </button>
   );
 }
@@ -218,22 +217,15 @@ function AccountMenu({
         aria-haspopup="menu"
         className="flex items-center gap-2 rounded-full p-0.5 pr-2 transition-colors hover:bg-bone/10"
       >
-        <Avatar url={avatarUrl} initials={initials} size={34} />
+        <Avatar url={avatarUrl} initials={initials} size={30} />
         <span className="sr-only">Account menu for {displayName}</span>
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-          className={`text-bone-dim transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        >
-          <path d="m5 9 7 7 7-7" />
-        </svg>
+        <Icon 
+          icon="lucide:chevron-down" 
+          width={20} 
+          height={20} 
+          aria-hidden 
+          className={`text-bone-dim transition-transform duration-200 ${open ? "rotate-180" : ""}`} 
+        />
       </button>
 
       {open && (
