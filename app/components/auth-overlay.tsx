@@ -266,7 +266,7 @@ function AuthOverlay({
 
         {/* The subtitle says what to do next, in the words of the mode you're
             in: one is an instruction, the other an invitation. */}
-        <div className={`px-8 text-center ${reason ? "mt-2" : ""}`}>
+        <div className={`px-8 mb-5 text-center ${reason ? "mt-2" : ""}`}>
           <h2 id="auth-heading" className="text-2xl font-semibold text-bone">
             {COPY[mode].heading}
           </h2>
@@ -279,20 +279,20 @@ function AuthOverlay({
         {mode !== "forgot" && (
           <>
             {/* UI only for now — wiring to Supabase's Google provider comes next. */}
-            <button
+            {/* <button
               type="button"
               className="btn btn-quiet mt-5 h-12 w-full text-base"
             >
               <GoogleMark />
               {mode === "signin" ? "Log in with Google" : "Sign up with Google"}
-            </button>
+            </button> */}
 
             {/* Names what's below it rather than saying "or" into empty space. */}
-            <div className="my-5 flex w-full items-center gap-3">
+            {/* <div className="my-5 flex w-full items-center gap-3">
               <span className="h-px flex-1 bg-ink-line" />
               <span className="meta !text-xs">or continue with email</span>
               <span className="h-px flex-1 bg-ink-line" />
-            </div>
+            </div> */}
           </>
         )}
 
