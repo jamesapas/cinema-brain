@@ -200,9 +200,9 @@ function AccountLink({
       href="/profile"
       aria-label={`Your profile, ${displayName}`}
       aria-current={current ? "page" : undefined}
-      className={`ml-1 grid h-10 w-10 place-items-center rounded-full ring-2 transition-colors ${
-        current ? "ring-lamp" : "ring-transparent hover:ring-bone/25"
-      }`}
+      // The ring is always drawn and only changes colour, so nothing shifts
+      // under the cursor; the lift is what the eye actually catches.
+      className="grid size-10 place-items-center rounded-full ring-2 ring-transparent transition duration-200 hover:scale-105 hover:ring-lamp/70"
     >
       <Avatar url={avatarUrl} initials={initials} size={30} />
     </Link>
