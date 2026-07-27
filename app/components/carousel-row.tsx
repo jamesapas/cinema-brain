@@ -104,7 +104,7 @@ export function CarouselRow({
               key={movie.id}
               movie={movie}
               rating={ratings[movie.id] ?? null}
-              priority={priority && index < 5}
+              preload={priority && index < 5}
             />
           ))}
         </div>

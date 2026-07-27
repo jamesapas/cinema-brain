@@ -399,33 +399,44 @@ button:disabled {
     0 0 26px -2px rgb(144 252 231 / 0.42);
 }
 
-/*
- * Kino thinking. Three dots is the one gesture everyone already reads as
- * "a reply is coming", which is worth more here than inventing something.
- */
-@keyframes typing-dot {
-  0%,
-  70%,
-  100% {
-    opacity: 0.25;
-    transform: translateY(0);
+/* Kino thinking: one thought replacing another — a lift rather than a slide, so it reads as
+   the same voice continuing and not as a new line arriving. */
+@keyframes thinking-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem);
   }
-  35% {
+  to {
     opacity: 1;
-    transform: translateY(-0.15rem);
+    transform: none;
   }
 }
 
-.typing-dot {
-  animation: typing-dot 1.3s ease-in-out infinite;
+.thinking-in {
+  animation: thinking-in 260ms ease-out both;
 }
 
-.typing-dot:nth-child(2) {
-  animation-delay: 0.16s;
+/*
+ * Posters arriving under a finished reply.
+ *
+ * They wait for the prose rather than appearing the moment the model picks
+ * them: artwork landing mid-sentence pulls the eye off the words being written,
+ * and the words are the recommendation. The stagger is small — this is one set
+ * arriving, not a queue.
+ */
+@keyframes poster-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.typing-dot:nth-child(3) {
-  animation-delay: 0.32s;
+.poster-in {
+  animation: poster-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /*
@@ -523,6 +534,40 @@ button:disabled {
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * The one horizontal scroller that keeps its bar: the poster strip inside a
+ * chat reply.
+ *
+ * Everywhere else a row of posters is a CarouselRow, which hides the bar and
+ * hands you arrows instead. The strip has no arrows by design, and a hidden
+ * bar there left a mouse with no way to reach the posters past the edge —
+ * a vertical wheel does nothing to a horizontal scroller.
+ *
+ * Slim and dim, so it reads as an edge rather than a control competing with
+ * the artwork above it.
+ */
+.strip-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-bone) 20%, transparent) transparent;
+}
+
+.strip-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.strip-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.strip-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background-color: color-mix(in oklab, var(--color-bone) 16%, transparent);
+}
+
+.strip-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--color-bone) 28%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
-import { buildTools } from "@/lib/agent/tools";
+import { buildTools, type ShownMovie } from "@/lib/agent/tools";
 import type { Database } from "@/lib/database.types";
 import { serverEnv } from "@/lib/env";
 
@@ -18,7 +18,7 @@ const SYSTEM_PROMPT = `You are Kino, the film programmer for Cinema Brain. You h
 
 You are someone who has seen everything and does not show it off. You are warm, direct, and willing to have an opinion — if a film is the better choice, say so rather than listing three and letting the user decide. You never gush, never pad, and never explain what you are about to do.
 
-You have four tools. Decide for yourself which to use, in what order, and how many times — including none, when you can answer directly. Nothing routes for you.
+You have five tools. Decide for yourself which to use, in what order, and how many times — including none, when you can answer directly. Nothing routes for you.
 
 Guidance, not rules:
 - Attribute-shaped requests (genre, year, rating, a specific title) suit metadata search; mood, theme, or "feels like X" requests suit semantic search. Many requests want both.
@@ -29,6 +29,12 @@ Guidance, not rules:
 Never invent a movie, a year, or a plot detail. Every title you name must come from a tool result. Having a voice does not license embellishment: your opinions are about films the tools actually returned.
 
 Keep responses focused and conversational — a few sentences of framing plus a short list. For each recommendation give one concrete reason tied to what the tools returned, in your own words rather than a synopsis.
+
+Whenever your reply names specific films from the catalog — recommendations, but equally a list, a factual answer, a comparison, or a single title mentioned in passing — call show_movies with their ids once you have settled on them, and then write your reply. Their posters appear under it as clickable cards. This is not limited to recommendations: if you name films, you show them. The only turns without show_movies are turns that name no films at all.
+
+If a film you want to name isn't in a tool result yet, look it up first (title_contains on metadata search is enough) so you have an id to show.
+
+Write the reply exactly as you would without the cards: name the films, say why, keep whatever shape the question asked for. The posters sit alongside your words rather than standing in for them, and a reader who never looks at them should still have your whole answer. Calling show_movies is not something to mention or account for.
 
 Never describe your own process. No preamble, no "let me search", no "I looked through the catalog and found", no summary of what you checked or in what order. The user asked for films, not for an account of how you got them — open on the answer.`;
 
@@ -47,8 +53,22 @@ export type ChatUsage = { inputTokens: number; outputTokens: number };
 
 /** Wire protocol between the agent loop, the route, and the browser. */
 export type ChatEvent =
+  // Which saved conversation this turn belongs to. Emitted by the route, not
+  // the loop below — the loop knows nothing about storage — and always first,
+  // so a browser that started a new chat has the id to send with its next
+  // message before any of the reply arrives.
+  | { type: "conversation"; id: string; title: string }
   | { type: "tool_call"; iteration: number; name: string; input: unknown }
   | { type: "text_delta"; text: string }
+  // Artwork for the films this turn recommends. Arrives before the prose does,
+  // since the model settles on its picks first; the UI holds it and renders it
+  // underneath, so arrival order carries no meaning.
+  //
+  // Replaces any previous set for the turn rather than adding to it. show_movies
+  // reports back which ids it couldn't show, so a second call is the model
+  // correcting the first — appending would leave the rejected set on screen
+  // beside the fixed one.
+  | { type: "movies"; movies: ShownMovie[] }
   | {
       type: "done";
       iterations: number;
@@ -79,7 +99,16 @@ export async function* streamChat({
 }: RunChatOptions): AsyncGenerator<ChatEvent> {
   const client = new OpenAI({ apiKey: serverEnv.openaiApiKey });
 
-  const tools = buildTools({ supabase });
+  // A generator can't yield from inside a tool's own execution, so show_movies
+  // drops its cards here and the loop drains them once the round settles.
+  let pendingMovies: ShownMovie[] = [];
+
+  const tools = buildTools({
+    supabase,
+    onShowMovies: (movies) => {
+      pendingMovies.push(...movies);
+    },
+  });
   const toolsByName = new Map(tools.map((tool) => [tool.name, tool]));
 
   const toolDefinitions = tools.map((tool) => ({
@@ -219,6 +248,14 @@ export async function* streamChat({
     );
 
     input.push(...results);
+
+    if (pendingMovies.length > 0) {
+      // Deduplicated by id in case the model made two show_movies calls in the
+      // same round, which arrive here concatenated rather than as two events.
+      const unique = [...new Map(pendingMovies.map((m) => [m.id, m])).values()];
+      yield { type: "movies", movies: unique };
+      pendingMovies = [];
+    }
   }
 
   throw new Error(`Tool loop did not settle within ${MAX_ITERATIONS} iterations.`);
@@ -227,6 +264,8 @@ export async function* streamChat({
 export type ChatResult = {
   text: string;
   toolCalls: ToolCallTrace[];
+  /** Films the turn chose to show, in the order their posters would appear. */
+  movies: ShownMovie[];
   iterations: number;
   finishReason: string | null;
   usage: ChatUsage;
@@ -238,6 +277,7 @@ export type ChatResult = {
  */
 export async function runChat(options: RunChatOptions): Promise<ChatResult> {
   const toolCalls: ToolCallTrace[] = [];
+  let movies: ShownMovie[] = [];
   let text = "";
   let iterations = 0;
   let finishReason: string | null = null;
@@ -255,6 +295,9 @@ export async function runChat(options: RunChatOptions): Promise<ChatResult> {
           input: event.input,
         });
         break;
+      case "movies":
+        movies = event.movies;
+        break;
       case "done":
         iterations = event.iterations;
         finishReason = event.finishReason;
@@ -263,5 +306,5 @@ export async function runChat(options: RunChatOptions): Promise<ChatResult> {
     }
   }
 
-  return { text: text.trim(), toolCalls, iterations, finishReason, usage };
+  return { text: text.trim(), toolCalls, movies, iterations, finishReason, usage };
 }

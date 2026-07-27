@@ -4,6 +4,8 @@ import { z } from "zod";
 import { defineTool } from "@/lib/agent/tool-kit";
 
 import type { Database } from "@/lib/database.types";
+import { getRatingsByMovie, hydrateCards } from "@/lib/movies/catalog";
+import type { MovieCard } from "@/lib/movies/images";
 import {
   CATALOG_GENRES,
   getRatingHistory,
@@ -13,24 +15,39 @@ import {
 } from "@/lib/movies/search";
 
 /**
- * The agent's four tools.
+ * The agent's five tools.
  *
  * Descriptions are deliberately prescriptive about *when* to call each tool,
  * not just what it does — that is what drives correct tool selection. There is
  * no routing logic anywhere in this file or its callers: the model sees all
- * four and decides which to call, in what order, and how many times.
+ * five and decides which to call, in what order, and how many times.
  */
 
 const genreEnum = z.enum(CATALOG_GENRES);
 
+/** A poster the browser can render, with the viewer's own score already on it. */
+export type ShownMovie = MovieCard & { userRating: number | null };
+
 export type ToolContext = {
   /** RLS-scoped client. Determines whose ratings the history tool can see. */
   supabase: SupabaseClient<Database>;
+  /**
+   * Where `show_movies` sends its artwork.
+   *
+   * Tools return a string to the model and nothing else, so this is the only
+   * way structured data reaches the UI without round-tripping through the
+   * model — which would mean paying tokens for poster filenames and handing it
+   * image paths to invent variations on.
+   */
+  onShowMovies?: (movies: ShownMovie[]) => void;
 };
 
 const RATING_AFFINITY_THRESHOLD = 7;
 
-export function buildTools({ supabase }: ToolContext) {
+/** More than this and it stops being a recommendation and becomes a search page. */
+const MAX_SHOWN_MOVIES = 8;
+
+export function buildTools({ supabase, onShowMovies }: ToolContext) {
   const searchMoviesByMetadata = defineTool({
     name: "search_movies_by_metadata",
     description:
@@ -272,10 +289,67 @@ export function buildTools({ supabase }: ToolContext) {
     },
   });
 
+  const showMovies = defineTool({
+    name: "show_movies",
+    description:
+      "Display the posters of the films your reply names, as clickable cards " +
+      "beneath it. Call this on EVERY turn that names specific films — not just " +
+      "recommendations, but lists, factual answers, comparisons, or a single title " +
+      "mentioned in passing. Call it once, as soon as you have settled on the " +
+      "films, and then write your reply — the posters are placed under it however " +
+      "they arrive. Pass the ids in the order you want them shown. Every id must " +
+      "come from an earlier tool result; this tool cannot look films up, and an id " +
+      "you did not retrieve is dropped. Still name and describe the films in your " +
+      "reply as normal: the posters accompany what you wrote, they do not replace it.",
+    parameters: z.object({
+      movie_ids: z
+        .array(z.number().int())
+        .min(1)
+        .max(MAX_SHOWN_MOVIES)
+        .describe(
+          "Movie ids from a previous tool result, in the order they should appear.",
+        ),
+    }),
+    run: async (input) => {
+      // De-duplicated, because the same film arriving twice would render as two
+      // identical posters. The first mention wins, so the model's ordering holds.
+      const ids = [...new Set(input.movie_ids)];
+
+      const [cards, ratings] = await Promise.all([
+        hydrateCards(supabase, ids),
+        getRatingsByMovie(supabase),
+      ]);
+
+      const shown: ShownMovie[] = [];
+      const missing: number[] = [];
+
+      for (const id of ids) {
+        const card = cards.get(id);
+        // A poster-less card is a grey box with a title under it, which reads as
+        // a broken image rather than a recommendation.
+        if (!card || !card.poster_path) {
+          missing.push(id);
+          continue;
+        }
+        shown.push({ ...card, userRating: ratings.get(id) ?? null });
+      }
+
+      if (shown.length > 0) onShowMovies?.(shown);
+
+      // The ack is deliberately thin: the model needs to know the call landed and
+      // which ids failed so it can correct itself, not to read back the artwork.
+      return JSON.stringify({
+        shown: shown.length,
+        missing_or_unavailable: missing,
+      });
+    },
+  });
+
   return [
     searchMoviesByMetadata,
     searchMoviesByMeaning,
     getMyRatingHistory,
     combineAndRankResults,
+    showMovies,
   ];
 }

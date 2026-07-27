@@ -81,7 +81,7 @@ export default async function SearchPage({
                     key={movie.id}
                     movie={movie}
                     rating={ratingsById[movie.id] ?? null}
-                    priority={index < 6}
+                    preload={index < 6}
                   />
                 ))}
               </div>

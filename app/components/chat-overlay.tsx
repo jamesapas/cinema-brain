@@ -83,7 +83,9 @@ export function ChatOverlayProvider({ children }: { children: React.ReactNode })
             aria-label="Ask Kino"
             // sheet-in, not search's palette-in: it rises rather than drops, so
             // the two panels don't arrive the same way.
-            className="sheet-in relative flex max-h-full w-full max-w-[920px] flex-col"
+            // 1160px, not 920: the sidebar took 240px, and keeping the old
+            // width would have narrowed the conversation itself by that much.
+            className="sheet-in relative flex max-h-full w-full max-w-[1160px] flex-col"
           >
             <ChatConversation seedPrompt={seedPrompt} onClose={() => setIsOpen(false)} />
           </div>

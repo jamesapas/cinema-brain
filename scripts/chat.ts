@@ -66,6 +66,7 @@ async function viaRoute(accessToken: string, prompt: string): Promise<ChatResult
   const result: ChatResult = {
     text: "",
     toolCalls: [],
+    movies: [],
     iterations: 0,
     finishReason: null,
     usage: { inputTokens: 0, outputTokens: 0 },
@@ -108,6 +109,9 @@ async function viaRoute(accessToken: string, prompt: string): Promise<ChatResult
             name: event.name,
             input: event.input,
           });
+          break;
+        case "movies":
+          result.movies = event.movies;
           break;
         case "done":
           result.iterations = event.iterations;
@@ -161,6 +165,20 @@ async function main() {
   }
 
   console.log(`${result.text}\n`);
+
+  // The posters the browser would render. Printed as a check that show_movies
+  // picked the same films the reply names, which is the one thing about this
+  // feature a terminal can verify and eyeballing the UI cannot.
+  if (result.movies.length > 0) {
+    console.log("Posters shown:");
+    for (const movie of result.movies) {
+      const year = movie.release_year ?? "----";
+      const yours = movie.userRating === null ? "unrated" : `yours ${movie.userRating}/10`;
+      console.log(`  ${movie.title} (${year}) · id ${movie.id} · ${yours}`);
+    }
+    console.log();
+  }
+
   console.log(
     `— ${seconds}s · ${result.iterations} iteration(s) · ` +
       `${result.usage.inputTokens} in / ${result.usage.outputTokens} out · ` +
