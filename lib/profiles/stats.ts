@@ -17,7 +17,7 @@ export type TasteStats = {
   averageStars: number | null;
   /** Runtime of everything rated, in minutes; films with no runtime are skipped. */
   totalMinutes: number;
-  /** Always five buckets, including empty ones — the shape of the chart is the point. */
+  /** Always ten half-star buckets (0.5–5.0), including empty ones — the shape of the chart is the point. */
   distribution: StarBucket[];
   topGenres: GenreCount[];
   highest: RatedMovie | null;
@@ -25,13 +25,11 @@ export type TasteStats = {
 };
 
 export function tasteStats(rated: RatedMovie[], topGenreCount = 5): TasteStats {
-  const buckets = new Map<number, number>([
-    [1, 0],
-    [2, 0],
-    [3, 0],
-    [4, 0],
-    [5, 0],
-  ]);
+  // Ratings are stored 1-10 so the UI can show half stars; bucket at that
+  // same 0.5 grain rather than rounding two raw scores into one star, which
+  // would silently drop the half-star ones into a whole-star count.
+  const buckets = new Map<number, number>();
+  for (let i = 1; i <= 10; i++) buckets.set(i / 2, 0);
   const genres = new Map<string, number>();
 
   let total = 0;
@@ -41,8 +39,7 @@ export function tasteStats(rated: RatedMovie[], topGenreCount = 5): TasteStats {
     total += entry.rating;
     minutes += entry.movie.runtime ?? 0;
 
-    // Two adjacent scores per star: 1-2 → 1★, 9-10 → 5★.
-    const star = Math.ceil(entry.rating / 2);
+    const star = entry.rating / 2;
     buckets.set(star, (buckets.get(star) ?? 0) + 1);
 
     for (const genre of entry.movie.genres) {

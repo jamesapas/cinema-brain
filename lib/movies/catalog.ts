@@ -280,16 +280,21 @@ export type RatedMovie = {
 };
 
 /**
- * Every film the user has scored, best first — the profile page's whole
- * dataset. One query: the ratings carry their movie rows with them rather than
- * being hydrated in a second pass.
+ * Every film a user has scored, best first — a profile page's whole dataset,
+ * owner's or not. One query: the ratings carry their movie rows with them
+ * rather than being hydrated in a second pass.
+ *
+ * Ratings are publicly readable now, so `userId` is required rather than
+ * left to RLS to narrow — an unfiltered query here would return everyone's.
  */
 export async function getRatedMovies(
   supabase: SupabaseClient<Database>,
+  userId: string,
 ): Promise<RatedMovie[]> {
   const { data, error } = await supabase
     .from("user_movie_ratings")
     .select(`rating, notes, created_at, movies(${CARD_SELECT})`)
+    .eq("user_id", userId)
     .not("rating", "is", null)
     .order("rating", { ascending: false })
     .order("updated_at", { ascending: false });

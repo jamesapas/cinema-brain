@@ -73,6 +73,24 @@ export type Database = {
           },
         ]
       }
+      follows: {
+        Row: {
+          created_at: string
+          followee_id: string
+          follower_id: string
+        }
+        Insert: {
+          created_at?: string
+          followee_id: string
+          follower_id: string
+        }
+        Update: {
+          created_at?: string
+          followee_id?: string
+          follower_id?: string
+        }
+        Relationships: []
+      }
       movies: {
         Row: {
           adult: boolean
@@ -154,25 +172,37 @@ export type Database = {
       profiles: {
         Row: {
           avatar_path: string | null
+          bio: string | null
           created_at: string
           display_name: string | null
           id: string
+          taste_summary: string | null
+          taste_summary_at: string | null
+          taste_summary_key: string | null
           updated_at: string
           username: string
         }
         Insert: {
           avatar_path?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           id: string
+          taste_summary?: string | null
+          taste_summary_at?: string | null
+          taste_summary_key?: string | null
           updated_at?: string
           username: string
         }
         Update: {
           avatar_path?: string | null
+          bio?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          taste_summary?: string | null
+          taste_summary_at?: string | null
+          taste_summary_key?: string | null
           updated_at?: string
           username?: string
         }

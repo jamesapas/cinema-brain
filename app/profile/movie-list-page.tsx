@@ -7,6 +7,7 @@ import { SignInPrompt } from "@/app/components/sign-in-prompt";
 import { getViewer } from "@/lib/auth/viewer";
 import { getRatingsByMovie } from "@/lib/movies/catalog";
 import { getListMovies, type MovieList } from "@/lib/movies/lists";
+import { getFollowCounts } from "@/lib/profiles/follows";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -48,9 +49,10 @@ export async function MovieListPage({
     );
   }
 
-  const [movies, ratings] = await Promise.all([
+  const [movies, ratings, counts] = await Promise.all([
     getListMovies(supabase, list),
     getRatingsByMovie(supabase),
+    getFollowCounts(supabase, viewer.id),
   ]);
 
   return (
@@ -61,6 +63,9 @@ export async function MovieListPage({
           username={viewer.username}
           avatarUrl={viewer.avatarUrl}
           initials={viewer.initials}
+          bio={viewer.profile?.bio ?? null}
+          followers={counts.followers}
+          following={counts.following}
         />
 
         <div className="mt-10 lg:mt-0">
@@ -72,11 +77,9 @@ export async function MovieListPage({
           </header>
 
           {movies.length === 0 ? (
-            <section className="mt-10 rounded-lg border border-ink-line bg-ink-raised px-6 py-10 text-center">
+            <section className="mt-10">
               <h2 className="text-xl font-bold text-bone">{empty.heading}</h2>
-              <p className="mx-auto mt-2 max-w-md leading-relaxed text-bone-soft">
-                {empty.body}
-              </p>
+              <p className="mt-2 max-w-md leading-relaxed text-bone-soft">{empty.body}</p>
               <Link href="/" className="btn btn-primary mt-6">
                 Browse the catalog
               </Link>

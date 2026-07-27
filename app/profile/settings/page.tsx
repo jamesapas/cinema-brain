@@ -3,6 +3,7 @@ import { ProfileSettingsForm } from "@/app/components/profile-settings-form";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { SignInPrompt } from "@/app/components/sign-in-prompt";
 import { getViewer } from "@/lib/auth/viewer";
+import { getFollowCounts } from "@/lib/profiles/follows";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = { title: "Settings" };
@@ -41,6 +42,7 @@ export default async function ProfileSettingsPage() {
   const memberSince = MONTH_YEAR.format(
     new Date(profile?.created_at ?? viewer.createdAt),
   );
+  const counts = await getFollowCounts(supabase, viewer.id);
 
   return (
     <AppShell viewer={viewer}>
@@ -50,6 +52,9 @@ export default async function ProfileSettingsPage() {
           username={viewer.username}
           avatarUrl={picture}
           initials={initials}
+          bio={profile?.bio ?? null}
+          followers={counts.followers}
+          following={counts.following}
         />
 
         <div className="mt-10 lg:mt-0">
@@ -61,6 +66,7 @@ export default async function ProfileSettingsPage() {
               email={email}
               username={viewer.username}
               displayName={profile?.display_name ?? null}
+              bio={profile?.bio ?? null}
               avatarUrl={picture}
               initials={initials}
               memberSince={memberSince}

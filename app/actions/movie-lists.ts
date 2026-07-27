@@ -67,5 +67,7 @@ export async function setListMembership(
   // "layout" so it reaches /profile/watchlist and /profile/favorites too —
   // those render the lists in full and are stale the moment one changes.
   revalidatePath("/profile", "layout");
+  // The overview page moved to /[username] and shows the same rated grid.
+  revalidatePath("/[username]", "page");
   return { ok: true };
 }

@@ -25,14 +25,21 @@ export function ProfileSidebar({
   username,
   avatarUrl,
   initials,
+  bio,
+  followers,
+  following,
 }: {
   displayName: string;
   username: string | null;
   avatarUrl: string | null;
   initials: string;
+  bio: string | null;
+  followers: number;
+  following: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const overviewHref = username ? `/${username}` : "/profile";
 
   async function signOut() {
     await createBrowserSupabase().auth.signOut();
@@ -47,21 +54,37 @@ export function ProfileSidebar({
     // of rated films. Self-start keeps it from stretching to the column's full
     // height and stranding Sign out at the bottom of the page.
     <aside className="lg:sticky lg:top-28 lg:h-fit lg:self-start">
-      <div className="flex items-center gap-3.5">
+      <Link href={overviewHref} className="flex items-center gap-3.5">
         <Avatar url={avatarUrl} initials={initials} size={52} />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-bone">{displayName}</p>
+          <div className="truncate font-semibold text-bone">
+            {displayName}
+          </div>
           {username && <p className="meta truncate !text-xs">@{username}</p>}
         </div>
+      </Link>
+
+      {bio && <p className="mt-3 text-sm leading-relaxed text-bone-soft">{bio}</p>}
+
+      <Link href="/profile/settings" className="btn btn-quiet mt-5 w-full">
+        Edit profile
+      </Link>
+
+      <div className="mt-4 flex items-center gap-2">
+        <Icon icon="mdi:account-multiple-outline" className="size-4 text-bone/70" />
+
+        <Link href={username ? `/${username}/followers` : "#"} className="meta follow-count-link">
+          <strong className="font-semibold text-bone">{followers}</strong> followers
+        </Link>
+
+        <span className="text-bone/40">•</span>
+
+        <Link href={username ? `/${username}/following` : "#"} className="meta follow-count-link">
+          <strong className="font-semibold text-bone">{following}</strong> following
+        </Link>
       </div>
 
       <nav aria-label="Profile sections" className="mt-7 flex flex-col gap-0.5">
-        <RailItem
-          href="/profile"
-          icon="lucide:chart-no-axes-column"
-          label="Overview"
-          current={pathname === "/profile"}
-        />
         <RailItem
           href="/profile/watchlist"
           icon="lucide:bookmark"
@@ -74,31 +97,22 @@ export function ProfileSidebar({
           label="Favorites"
           current={pathname === "/profile/favorites"}
         />
-        <RailItem
-          href="/profile/settings"
-          icon="lucide:settings"
-          label="Settings"
-          current={pathname === "/profile/settings"}
-        />
-      </nav>
-
-      <div className="mt-7 border-t border-ink-line pt-3">
         <button
           type="button"
           onClick={signOut}
-          className={`${RAIL_ITEM} text-bone-dim hover:text-bone`}
+          className={`${RAIL_ITEM} mt-2.5 border-t border-ink-line pt-5 text-bone-soft hover:text-bone`}
         >
           <Icon icon="lucide:log-out" width={18} height={18} aria-hidden />
           Sign out
         </button>
-      </div>
+      </nav>
     </aside>
   );
 }
 
 /** One line in the rail. The bar on the left is the only marker of place. */
 const RAIL_ITEM =
-  "flex w-full items-center gap-3 border-l-2 border-transparent py-2.5 pl-4 text-left text-sm transition-colors";
+  "flex w-full items-center gap-3 py-2.5 text-left text-sm transition-colors";
 
 function RailItem({
   href,
@@ -140,9 +154,7 @@ function RailItem({
       href={href}
       aria-current={current ? "page" : undefined}
       className={`${RAIL_ITEM} ${
-        current
-          ? "!border-lamp font-semibold text-bone"
-          : "text-bone-soft hover:border-bone/25 hover:text-bone"
+        current ? "font-semibold text-bone" : "text-bone-soft hover:text-bone"
       }`}
     >
       {body}

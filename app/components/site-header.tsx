@@ -25,12 +25,14 @@ import { useSignIn } from "@/app/components/session";
  */
 export function SiteHeader({
   email,
+  username,
   displayName,
   avatarUrl,
   initials,
 }: {
   /** All null for a signed-out visitor — see AppShell. */
   email: string | null;
+  username: string | null;
   displayName: string | null;
   avatarUrl: string | null;
   initials: string | null;
@@ -75,6 +77,7 @@ export function SiteHeader({
 
           {email !== null ? (
             <AccountLink
+              username={username}
               displayName={displayName ?? email}
               avatarUrl={avatarUrl}
               initials={initials ?? "?"}
@@ -184,20 +187,23 @@ function NavLink({
  * the avatar is simply the door to it, ringed when you're already through.
  */
 function AccountLink({
+  username,
   displayName,
   avatarUrl,
   initials,
 }: {
+  username: string | null;
   displayName: string;
   avatarUrl: string | null;
   initials: string;
 }) {
   const pathname = usePathname();
-  const current = pathname === "/profile";
+  const href = username ? `/${username}` : "/profile";
+  const current = pathname === href;
 
   return (
     <Link
-      href="/profile"
+      href={href}
       aria-label={`Your profile, ${displayName}`}
       aria-current={current ? "page" : undefined}
       // The ring is always drawn and only changes colour, so nothing shifts

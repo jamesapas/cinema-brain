@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import {
   removeAvatar,
   setAvatar,
+  updateBio,
   updateDisplayName,
   updateUsername,
 } from "@/app/actions/profile";
@@ -62,6 +63,7 @@ export function ProfileSettingsForm({
   email,
   username,
   displayName,
+  bio,
   avatarUrl,
   initials,
   memberSince,
@@ -72,6 +74,7 @@ export function ProfileSettingsForm({
   username: string | null;
   /** The stored value, which may be null. What the field edits. */
   displayName: string | null;
+  bio: string | null;
   avatarUrl: string | null;
   initials: string;
   memberSince: string;
@@ -80,13 +83,17 @@ export function ProfileSettingsForm({
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<
-    "upload" | "remove" | "name" | "handle" | null
+    "upload" | "remove" | "name" | "bio" | "handle" | null
   >(null);
   const [error, setError] = useState<string | null>(null);
 
   const [draftName, setDraftName] = useState(displayName ?? "");
   const [savedName, setSavedName] = useState(false);
   const nameChanged = draftName.trim() !== (displayName ?? "").trim();
+
+  const [draftBio, setDraftBio] = useState(bio ?? "");
+  const [savedBio, setSavedBio] = useState(false);
+  const bioChanged = draftBio.trim() !== (bio ?? "").trim();
 
   const [draftHandle, setDraftHandle] = useState(username ?? "");
   const [savedHandle, setSavedHandle] = useState(false);
@@ -165,6 +172,23 @@ export function ProfileSettingsForm({
       return;
     }
     setSavedName(true);
+    router.refresh();
+  }
+
+  async function handleBio(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSavedBio(false);
+    setBusy("bio");
+
+    const result = await updateBio(draftBio);
+    setBusy(null);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSavedBio(true);
     router.refresh();
   }
 
@@ -290,6 +314,40 @@ export function ProfileSettingsForm({
               {busy === "name" ? "Saving…" : "Save"}
             </button>
             {savedName && !nameChanged && (
+              <span role="status" className="meta !text-lamp">
+                Saved
+              </span>
+            )}
+          </div>
+        </form>
+      </Row>
+
+      <Row label="Bio">
+        <form onSubmit={handleBio}>
+          <label htmlFor="bio" className="sr-only">
+            Bio
+          </label>
+          <div className="flex flex-wrap items-start gap-2">
+            <textarea
+              id="bio"
+              value={draftBio}
+              maxLength={160}
+              rows={2}
+              placeholder="Not set"
+              onChange={(event) => {
+                setDraftBio(event.target.value);
+                setSavedBio(false);
+              }}
+              className="h-auto w-full max-w-xs resize-none rounded-md border border-ink-line bg-bone/8 px-3 py-2 text-bone placeholder:text-bone-dim focus:border-lamp focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={busy !== null || !bioChanged}
+              className="btn btn-quiet"
+            >
+              {busy === "bio" ? "Saving…" : "Save"}
+            </button>
+            {savedBio && !bioChanged && (
               <span role="status" className="meta !text-lamp">
                 Saved
               </span>

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
-import { avatarUrl, displayNameFor, initialsFor, providerAvatarFrom } from "@/lib/profiles/avatar";
+import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import { getProfile, type Profile } from "@/lib/profiles/queries";
 
 /**
@@ -38,7 +38,7 @@ export async function getViewer(
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const profile = await getProfile(supabase);
+  const profile = await getProfile(supabase, user.id);
   const email = user.email ?? "signed in";
 
   return {
@@ -48,7 +48,7 @@ export async function getViewer(
     profile,
     createdAt: user.created_at,
     displayName: displayNameFor(profile?.display_name ?? null, email),
-    avatarUrl: avatarUrl(profile?.avatar_path, providerAvatarFrom(user.user_metadata)),
+    avatarUrl: avatarUrl(profile?.avatar_path),
     initials: initialsFor(profile?.display_name ?? null, email),
   };
 }

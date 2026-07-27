@@ -49,6 +49,7 @@ export async function AppShell({
               <div className="flex min-h-full flex-1 flex-col">
                 <SiteHeader
                   email={viewer?.email ?? null}
+                  username={viewer?.username ?? null}
                   displayName={viewer?.displayName ?? null}
                   avatarUrl={viewer?.avatarUrl ?? null}
                   initials={viewer?.initials ?? null}

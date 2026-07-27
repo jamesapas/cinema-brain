@@ -46,8 +46,36 @@ export async function updateDisplayName(name: string): Promise<ProfileResult> {
     return { ok: false, error: "Couldn't save that name. Try again." };
   }
 
-  revalidatePath("/profile");
+  revalidatePath("/[username]", "page");
   revalidatePath("/");
+  return { ok: true };
+}
+
+const MAX_BIO = 160;
+
+export async function updateBio(bio: string): Promise<ProfileResult> {
+  const trimmed = bio.trim();
+  if (trimmed.length > MAX_BIO) {
+    return { ok: false, error: `Keep it to ${MAX_BIO} characters or fewer.` };
+  }
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit your profile." };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ bio: trimmed || null })
+    .eq("id", user.id);
+
+  if (error) {
+    console.error("[updateBio]", error);
+    return { ok: false, error: "Couldn't save that bio. Try again." };
+  }
+
+  revalidatePath("/[username]", "page");
   return { ok: true };
 }
 
@@ -109,7 +137,7 @@ export async function updateUsername(name: string): Promise<ProfileResult> {
     return { ok: false, error: "Couldn't save that username. Try again." };
   }
 
-  revalidatePath("/profile");
+  revalidatePath("/[username]", "page");
   revalidatePath("/");
   return { ok: true };
 }
@@ -157,7 +185,7 @@ export async function setAvatar(path: string): Promise<ProfileResult> {
     if (removeError) console.error("[setAvatar] stale object", removeError);
   }
 
-  revalidatePath("/profile");
+  revalidatePath("/[username]", "page");
   revalidatePath("/");
   return { ok: true };
 }
@@ -194,7 +222,7 @@ export async function removeAvatar(): Promise<ProfileResult> {
     if (removeError) console.error("[removeAvatar] object", removeError);
   }
 
-  revalidatePath("/profile");
+  revalidatePath("/[username]", "page");
   revalidatePath("/");
   return { ok: true };
 }

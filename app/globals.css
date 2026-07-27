@@ -122,6 +122,20 @@ button:disabled {
 }
 
 /*
+ * The follower/following counts' hover color, kept as unlayered CSS for the
+ * same reason as `.kino-focus` below: `.meta` is itself unlayered, so it
+ * beats a `hover:text-lamp` utility outright, no matter the specificity.
+ */
+.follow-count-link {
+  transition: color 150ms ease;
+}
+
+.follow-count-link:hover,
+.follow-count-link:hover strong {
+  color: var(--color-lamp);
+}
+
+/*
  * Buttons. One base, two weights: the gold fill is the page's primary action,
  * the quiet variant is everything else.
  */
