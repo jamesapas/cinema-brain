@@ -178,6 +178,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_movie_lists: {
+        Row: {
+          created_at: string
+          list: string
+          movie_id: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          list: string
+          movie_id: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          list?: string
+          movie_id?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_movie_lists_movie_id_fkey"
+            columns: ["movie_id"]
+            isOneToOne: false
+            referencedRelation: "movies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_movie_ratings: {
         Row: {
           created_at: string

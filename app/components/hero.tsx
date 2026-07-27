@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AskAboutButton } from "@/app/components/chat-overlay";
+import { ListButtons } from "@/app/components/movie-lists";
 import { MovieMeta } from "@/app/components/movie-meta";
 import { StarRating } from "@/app/components/star-rating";
 import { backdropUrl, type MovieCard } from "@/lib/movies/images";
@@ -214,6 +215,10 @@ export function Hero({
               rating={ratings[movie.id] ?? null}
               size="lg"
             />
+            {/* Icons only, unlike the film page's labelled pair: this row
+                already carries two labelled buttons, and a third and fourth
+                would have pushed the stars onto their own line. */}
+            <ListButtons movieId={movie.id} variant="hero" />
           </div>
         </div>
 

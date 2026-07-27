@@ -6,6 +6,7 @@ import { cache } from "react";
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
 import { AskAboutButton } from "@/app/components/chat-overlay";
+import { ListButtons } from "@/app/components/movie-lists";
 import { MovieMeta } from "@/app/components/movie-meta";
 import { StarRating } from "@/app/components/star-rating";
 import {
@@ -151,6 +152,14 @@ export default async function MoviePage({ params }: PageProps) {
                     size="xl"
                     showValue
                   />
+              </div>
+
+              {/* Their own line, below the rating. Saving a film for later is
+                  a smaller decision than scoring one, and putting the two
+                  labelled buttons in the row above would have crowded the
+                  stars — the one thing on this page meant to be seen first. */}
+              <div className="mt-5">
+                <ListButtons movieId={movie.id} variant="inline" />
               </div>
 
               {movie.overview && (

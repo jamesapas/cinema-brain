@@ -25,6 +25,9 @@
      glow. Gold is the app's; this is his, and it is the only place it is
      used, so he stays a character rather than another button. */
   --color-kino: #90fce7;
+  /* The favorite heart, and nothing else. Warmed towards the gold so it sits
+     in the same light rather than arriving from a stock palette. */
+  --color-ember: #e8524b;
 
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-prose: var(--font-inter), ui-sans-serif, system-ui, sans-serif;

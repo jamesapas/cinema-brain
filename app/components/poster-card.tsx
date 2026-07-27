@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ListButtons } from "@/app/components/movie-lists";
 import { StarRating } from "@/app/components/star-rating";
 import { posterUrl, type MovieCard } from "@/lib/movies/images";
 
@@ -82,6 +83,14 @@ export function PosterCard({
         >
           <span className="sr-only">View details for {movie.title}</span>
         </Link>
+
+        {/* On top of the link rather than beside it, for the same reason the
+            stars sit outside the artwork: a link cannot contain a button. z-20
+            clears the tile-wide click target below, and the buttons stop the
+            click from reaching it. */}
+        <div className="absolute top-1.5 right-1.5 z-20">
+          <ListButtons movieId={movie.id} />
+        </div>
       </div>
 
       <div className="mt-2 space-y-1 sm:mt-2.5">

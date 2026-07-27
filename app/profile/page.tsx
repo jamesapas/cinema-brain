@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { AppShell } from "@/app/components/app-shell";
 import { PosterCard } from "@/app/components/poster-card";
-import { ProfileIdentity } from "@/app/components/profile-identity";
+import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { SignInPrompt } from "@/app/components/sign-in-prompt";
 import { getViewer } from "@/lib/auth/viewer";
 import { getRatedMovies } from "@/lib/movies/catalog";
@@ -37,7 +37,7 @@ export default async function ProfilePage() {
   }
 
   const rated = await getRatedMovies(supabase);
-  const { email, profile, displayName: name, initials, avatarUrl: picture } = viewer;
+  const { profile, displayName: name, initials, avatarUrl: picture } = viewer;
   const stats = tasteStats(rated);
   const memberSince = MONTH_YEAR.format(
     new Date(profile?.created_at ?? viewer.createdAt),
@@ -47,18 +47,24 @@ export default async function ProfilePage() {
 
   return (
     <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24">
-        <div className="flex flex-col gap-12">
-          <ProfileIdentity
-            userId={viewer.id}
-            email={email}
-            username={viewer.username}
-            name={name}
-            displayName={profile?.display_name ?? null}
-            avatarUrl={picture}
-            initials={initials}
-            memberSince={memberSince}
-          />
+      {/* Two columns from lg up: the rail is a fixed 15rem and the history
+          takes the rest. Below that it stacks, rail first — it's the shortest
+          part and holds the navigation. */}
+      <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
+        <ProfileSidebar
+          displayName={name}
+          username={viewer.username}
+          avatarUrl={picture}
+          initials={initials}
+        />
+
+        <div className="mt-10 flex flex-col gap-12 lg:mt-0">
+          {/* The rail already carries your face and name, so the page opens on
+              what it's actually for: the history. */}
+          <header>
+            <h1 className="text-2xl font-bold text-bone">Overview</h1>
+            <p className="meta mt-1">Member since {memberSince}</p>
+          </header>
 
           {stats.count === 0 ? (
             <EmptyState />
@@ -97,7 +103,10 @@ export default async function ProfilePage() {
                   <h2 className="text-xl font-bold text-bone">Films you&rsquo;ve rated</h2>
                   <span className="meta">Highest first</span>
                 </div>
-                <div className="mt-5 flex flex-wrap gap-4">
+                {/* A grid, not wrapped flex: fixed-width cards left a ragged
+                    gap at the end of every row. The cards' own width is
+                    overridden so each one fills its track. */}
+                <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] [&>article]:w-full">
                   {rated.map((entry) => (
                     <PosterCard
                       key={entry.movie.id}

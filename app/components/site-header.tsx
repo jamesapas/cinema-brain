@@ -2,14 +2,13 @@
 
 import { Icon } from "@iconify/react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
 import { KinoAvatar } from "@/app/components/kino-avatar";
 import { useSearchOverlay } from "@/app/components/search-overlay";
 import { useSignIn } from "@/app/components/session";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 /**
  * The bar over the catalog.
@@ -21,8 +20,8 @@ import { createBrowserSupabase } from "@/lib/supabase/browser";
  * way; the fill alone does the separating.
  *
  * Everything to the right of the wordmark is the same signed in or out except
- * the last control: an account menu, or the buttons that get you one. The
- * catalog itself doesn't change, so neither should the bar over it.
+ * the last control: your avatar, or the buttons that get you one. The catalog
+ * itself doesn't change, so neither should the bar over it.
  */
 export function SiteHeader({
   email,
@@ -75,8 +74,7 @@ export function SiteHeader({
           </div>
 
           {email !== null ? (
-            <AccountMenu
-              email={email}
+            <AccountLink
               displayName={displayName ?? email}
               avatarUrl={avatarUrl}
               initials={initials ?? "?"}
@@ -178,97 +176,35 @@ function NavLink({
   );
 }
 
-function AccountMenu({
-  email,
+/**
+ * Your face in the bar, and nothing behind it.
+ *
+ * A menu of two items was a click in the way of the only place it went, and
+ * the profile page now carries the account controls in its own sidebar — so
+ * the avatar is simply the door to it, ringed when you're already through.
+ */
+function AccountLink({
   displayName,
   avatarUrl,
   initials,
 }: {
-  email: string;
   displayName: string;
   avatarUrl: string | null;
   initials: string;
 }) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: PointerEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  async function signOut() {
-    await createBrowserSupabase().auth.signOut();
-    // Home, not the login page: signing out drops you back into the catalog,
-    // which is public now. Nothing to be thrown out of.
-    router.replace("/");
-    router.refresh();
-  }
+  const pathname = usePathname();
+  const current = pathname === "/profile";
 
   return (
-    <div ref={wrapRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-full p-0.5 pr-2 transition-colors hover:bg-bone/10"
-      >
-        <Avatar url={avatarUrl} initials={initials} size={30} />
-        <span className="sr-only">Account menu for {displayName}</span>
-        <Icon 
-          icon="lucide:chevron-down" 
-          width={20} 
-          height={20} 
-          aria-hidden 
-          className={`text-bone-dim transition-transform duration-200 ${open ? "rotate-180" : ""}`} 
-        />
-      </button>
-
-      {open && (
-        <div
-          role="menu"
-          aria-label="Account"
-          className="absolute right-0 mt-2 w-60 overflow-hidden rounded-lg border border-ink-line bg-ink-raised shadow-2xl"
-        >
-          <div className="border-b border-ink-line px-4 py-3">
-            <p className="truncate font-semibold text-bone">{displayName}</p>
-            <p className="meta truncate">{email}</p>
-          </div>
-
-          <Link
-            href="/profile"
-            role="menuitem"
-            onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 text-sm text-bone-soft transition-colors hover:bg-bone/8 hover:text-bone"
-          >
-            Your profile
-          </Link>
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={signOut}
-            className="block w-full px-4 py-2.5 text-left text-sm text-bone-soft transition-colors hover:bg-bone/8 hover:text-bone"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
-    </div>
+    <Link
+      href="/profile"
+      aria-label={`Your profile, ${displayName}`}
+      aria-current={current ? "page" : undefined}
+      className={`ml-1 grid h-10 w-10 place-items-center rounded-full ring-2 transition-colors ${
+        current ? "ring-lamp" : "ring-transparent hover:ring-bone/25"
+      }`}
+    >
+      <Avatar url={avatarUrl} initials={initials} size={30} />
+    </Link>
   );
 }
