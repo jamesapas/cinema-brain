@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
 import { useSearchOverlay } from "@/app/components/search-overlay";
+import { useSignIn } from "@/app/components/session";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 /**
@@ -17,6 +18,10 @@ import { createBrowserSupabase } from "@/lib/supabase/browser";
  * uninterrupted. It fills in once the page scrolls, because posters travelling
  * behind a transparent bar collide with the wordmark. No rule under it either
  * way; the fill alone does the separating.
+ *
+ * Everything to the right of the wordmark is the same signed in or out except
+ * the last control: an account menu, or the one button that gets you one. The
+ * catalog itself doesn't change, so neither should the bar over it.
  */
 export function SiteHeader({
   email,
@@ -24,10 +29,11 @@ export function SiteHeader({
   avatarUrl,
   initials,
 }: {
-  email: string;
-  displayName: string;
+  /** All null for a signed-out visitor — see AppShell. */
+  email: string | null;
+  displayName: string | null;
   avatarUrl: string | null;
-  initials: string;
+  initials: string | null;
 }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -61,12 +67,16 @@ export function SiteHeader({
 
           <SearchButton />
 
-          <AccountMenu
-            email={email}
-            displayName={displayName}
-            avatarUrl={avatarUrl}
-            initials={initials}
-          />
+          {email !== null ? (
+            <AccountMenu
+              email={email}
+              displayName={displayName ?? email}
+              avatarUrl={avatarUrl}
+              initials={initials ?? "?"}
+            />
+          ) : (
+            <SignInButton />
+          )}
         </div>
       </div>
     </header>
@@ -89,6 +99,28 @@ function SearchButton() {
       className={ICON_CONTROL}
     >
       <Icon icon="iconamoon:search" width={24} height={24} aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * The signed-out end of the bar.
+ *
+ * One button, not a "Sign in" / "Sign up" pair: the panel it opens offers
+ * both, and two adjacent buttons reading as a choice you must make before you
+ * know what either means is a worse door than one. It opens over the page
+ * rather than replacing it, so nothing is lost by trying it.
+ */
+function SignInButton() {
+  const signIn = useSignIn();
+
+  return (
+    <button
+      type="button"
+      onClick={() => signIn()}
+      className="btn btn-primary ml-1 h-9 px-4 text-sm"
+    >
+      Sign in
     </button>
   );
 }
@@ -163,7 +195,9 @@ function AccountMenu({
 
   async function signOut() {
     await createBrowserSupabase().auth.signOut();
-    router.replace("/login");
+    // Home, not the login page: signing out drops you back into the catalog,
+    // which is public now. Nothing to be thrown out of.
+    router.replace("/");
     router.refresh();
   }
 

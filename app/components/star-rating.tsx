@@ -3,6 +3,7 @@
 import { useId, useState, useTransition } from "react";
 
 import { clearRating, rateMovie } from "@/app/actions/rate-movie";
+import { useSignIn, useSignedIn } from "@/app/components/session";
 
 /**
  * Five stars in half-star steps. Each half is one point of the stored 1-10
@@ -42,6 +43,8 @@ export function StarRating({
    */
   showValue?: boolean;
 }) {
+  const signedIn = useSignedIn();
+  const signIn = useSignIn();
   const [saved, setSaved] = useState<number | null>(rating);
   const [preview, setPreview] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,16 @@ export function StarRating({
   const shown = preview ?? saved ?? 0;
 
   function submit(value: number) {
+    // Signed out, the stars are still here and still hoverable — they show
+    // what the site is for. Setting one is what needs an account, so the ask
+    // opens right here, over the film they were about to rate, and closing it
+    // gives that film straight back. The Server Function refuses this case
+    // too; this is the version with somewhere to go.
+    if (!signedIn) {
+      signIn("To rate this film");
+      return;
+    }
+
     const previous = saved;
     // Clicking the current value again clears it — the only way to undo a
     // misclick without a separate control.
@@ -87,13 +100,18 @@ export function StarRating({
           {[1, 2, 3, 4, 5].map((star) => {
             const leftValue = star * 2 - 1;
             const rightValue = star * 2;
+            // Announce where the button actually goes. Ten halves all reading
+            // "Sign in to rate this film" is repetitive but true; a label
+            // promising a rating that turns into a page change is not.
+            const label = (value: number) =>
+              signedIn ? `Rate ${value / 2} of 5 stars` : "Sign in to rate this film";
             return (
               <span key={star} className={`relative inline-block ${SIZE_CLASS[size]}`}>
                 <StarGlyph fill={fillFor(shown, star)} />
                 {/* Two invisible hit targets per star: left half, right half. */}
                 <button
                   type="button"
-                  aria-label={`Rate ${leftValue / 2} of 5 stars`}
+                  aria-label={label(leftValue)}
                   onClick={() => submit(leftValue)}
                   onMouseEnter={() => setPreview(leftValue)}
                   onFocus={() => setPreview(leftValue)}
@@ -101,7 +119,7 @@ export function StarRating({
                 />
                 <button
                   type="button"
-                  aria-label={`Rate ${rightValue / 2} of 5 stars`}
+                  aria-label={label(rightValue)}
                   onClick={() => submit(rightValue)}
                   onMouseEnter={() => setPreview(rightValue)}
                   onFocus={() => setPreview(rightValue)}

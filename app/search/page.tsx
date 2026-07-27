@@ -1,13 +1,10 @@
-import { redirect } from "next/navigation";
-
 import { AppShell } from "@/app/components/app-shell";
 import { AskAgentButton } from "@/app/components/chat-overlay";
 import { PosterCard } from "@/app/components/poster-card";
 import { SearchField } from "@/app/components/search-field";
+import { getViewer } from "@/lib/auth/viewer";
 import { getRatingsByMovie, searchMoviesByTitle } from "@/lib/movies/catalog";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
-import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
-import { getProfile } from "@/lib/profiles/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const metadata = { title: "Search · Cinema Brain" };
@@ -20,33 +17,25 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   // A repeated ?q= arrives as an array; take the first rather than rendering
   // "a,b" back into the box.
   const raw = (await searchParams).q;
   const query = (Array.isArray(raw) ? raw[0] : (raw ?? "")).trim();
 
-  const [profile, ratings, results] = await Promise.all([
-    getProfile(supabase),
-    getRatingsByMovie(supabase),
+  // Finding a film is browsing, so it needs no account. The stars on the
+  // results do, and there are none to fetch without one.
+  const [viewer, results] = await Promise.all([
+    getViewer(supabase),
     searchMoviesByTitle(supabase, query, RESULT_LIMIT),
   ]);
 
-  const email = user.email ?? "signed in";
+  const ratings = viewer ? await getRatingsByMovie(supabase) : new Map<number, number>();
   const ratingsById = Object.fromEntries(ratings);
   const tooShort = query.length > 0 && query.length < MIN_SEARCH_LENGTH;
 
   return (
-    <AppShell
-      email={email}
-      displayName={displayNameFor(profile?.display_name ?? null, email)}
-      avatarUrl={avatarUrl(profile?.avatar_path)}
-      initials={initialsFor(profile?.display_name ?? null, email)}
-    >
+    <AppShell viewer={viewer}>
       <main className="page-container flex-1 pt-28 pb-24">
         <div className="max-w-2xl">
           <h1 className="text-2xl font-bold text-bone sm:text-3xl">Search</h1>

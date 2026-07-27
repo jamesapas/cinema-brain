@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 import { ChatConversation } from "@/app/chat-panel";
 import { KinoAvatar } from "@/app/components/kino-avatar";
+import { useSignIn, useSignedIn } from "@/app/components/session";
 
 /**
  * Kino, summoned over whatever you were looking at.
@@ -16,6 +17,12 @@ import { KinoAvatar } from "@/app/components/kino-avatar";
  *
  * The context exists so anything on the page — a hero, a poster — can open it
  * with a question already in the box.
+ *
+ * Signed out, every way in stays exactly where it is: the floating face, the
+ * Ask Kino buttons, all of it. Hiding them would mean a visitor never learns
+ * the site has an agent, which is the thing worth having an account for. What
+ * they get on click is the ask, not the transcript — he reads your ratings and
+ * saves what he says, and neither exists without an account.
  */
 
 type ChatOverlayContextValue = {
@@ -33,40 +40,58 @@ export function useChatOverlay() {
 }
 
 export function ChatOverlayProvider({ children }: { children: React.ReactNode }) {
+  const signedIn = useSignedIn();
   const [isOpen, setIsOpen] = useState(false);
+  const [askingSignIn, setAskingSignIn] = useState(false);
   const [seedPrompt, setSeedPrompt] = useState<string | null>(null);
 
-  const open = useCallback((prompt?: string) => {
-    setSeedPrompt(prompt ?? null);
-    setIsOpen(true);
-  }, []);
+  const open = useCallback(
+    (prompt?: string) => {
+      // The route behind this answers 401 without a session, so opening the
+      // panel would only spend a message to say so.
+      if (!signedIn) {
+        setAskingSignIn(true);
+        return;
+      }
+      setSeedPrompt(prompt ?? null);
+      setIsOpen(true);
+    },
+    [signedIn],
+  );
+
+  // Both panels are dismissed the same way, so Escape is wired once.
+  const anyOpen = isOpen || askingSignIn;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!anyOpen) return;
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setIsOpen(false);
+      if (event.key !== "Escape") return;
+      setIsOpen(false);
+      setAskingSignIn(false);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen]);
+  }, [anyOpen]);
 
   // Body scroll belongs to the panel while it is open, the same as search.
   useEffect(() => {
-    if (!isOpen) return;
+    if (!anyOpen) return;
 
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = overflow;
     };
-  }, [isOpen]);
+  }, [anyOpen]);
 
   return (
     <ChatOverlayContext.Provider value={{ open }}>
       {children}
 
-      <SummonButton onClick={() => open()} hidden={isOpen} />
+      <SummonButton onClick={() => open()} hidden={anyOpen} />
+
+      {askingSignIn && <SignInToChat onClose={() => setAskingSignIn(false)} />}
 
       {isOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-8">
@@ -92,6 +117,66 @@ export function ChatOverlayProvider({ children }: { children: React.ReactNode })
         </div>
       )}
     </ChatOverlayContext.Provider>
+  );
+}
+
+/**
+ * What a signed-out visitor gets instead of the transcript.
+ *
+ * Deliberately his face and his voice — this is a preview of the thing being
+ * offered, not an error. It says what an account buys (he reads your ratings,
+ * the conversation is still there tomorrow) rather than what went wrong, and
+ * "Sign in" swaps it for the auth panel in place, so the whole exchange
+ * happens without the film behind it ever going away.
+ */
+function SignInToChat({ onClose }: { onClose: () => void }) {
+  const signIn = useSignIn();
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center px-4 py-8">
+      <button
+        type="button"
+        aria-label="Close"
+        onClick={onClose}
+        className="scrim-in absolute inset-0 bg-ink/70 backdrop-blur-md"
+      />
+
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="kino-signin-heading"
+        className="sheet-in relative w-full max-w-md rounded-lg border border-ink-line bg-ink-raised px-6 py-8 text-center shadow-2xl sm:px-10"
+      >
+        <div className="flex justify-center">
+          <KinoAvatar size={64} />
+        </div>
+
+        <h2 id="kino-signin-heading" className="mt-5 text-2xl font-bold text-bone">
+          Kino needs to know you
+        </h2>
+        <p className="mt-3 leading-relaxed text-bone-soft">
+          He reads your ratings before he recommends anything, and keeps every
+          conversation for next time. Sign in and ask him.
+        </p>
+
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              // Hand over rather than stack: two scrims deep is a maze.
+              onClose();
+              signIn("To ask Kino");
+            }}
+            className="btn btn-primary h-11 px-6"
+          >
+            Sign in
+          </button>
+          <button type="button" onClick={onClose} className="btn btn-quiet h-11 px-6">
+            Keep browsing
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

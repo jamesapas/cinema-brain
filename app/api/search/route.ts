@@ -9,9 +9,10 @@ import { createServerSupabase } from "@/lib/supabase/server";
  * every keystroke: GET is the honest verb, and the browser will reuse an
  * in-flight response for a repeated query rather than posting again.
  *
- * The RLS-scoped cookie client is used deliberately even though `movies` is
- * readable by any signed-in user — an unauthenticated request should find
- * nothing rather than quietly enumerate the catalog.
+ * Open to signed-out visitors, because browsing is. The cookie client is still
+ * what runs the query, so this is RLS reading a table that is deliberately
+ * public — nothing in `movies` is anyone's private data, and no other table is
+ * reachable from here. Ratings, chats, and profiles stay `to authenticated`.
  */
 
 /** One page. The overlay asks for the next one as you reach the end. */
@@ -40,11 +41,6 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return Response.json({ error: "Sign in to search." }, { status: 401 });
 
   try {
     const { movies, hasMore } = await searchMoviesByTitle(supabase, query, PAGE_SIZE, offset);

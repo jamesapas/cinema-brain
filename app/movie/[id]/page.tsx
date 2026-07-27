@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { cache } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
@@ -14,8 +14,7 @@ import {
   getRelatedMovies,
 } from "@/lib/movies/catalog";
 import { backdropUrl } from "@/lib/movies/images";
-import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
-import { getProfile } from "@/lib/profiles/queries";
+import { getViewer } from "@/lib/auth/viewer";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -62,36 +61,29 @@ export default async function MoviePage({ params }: PageProps) {
   if (id === null) notFound();
 
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   // All four together, including the related films: waiting to see whether the
   // film exists before starting the vector query would put Pinecone's round
   // trip in series on every valid page, to save one read unit on the rare
   // invalid one.
-  const [movie, related, ratings, profile] = await Promise.all([
+  //
+  // A signed-out visitor gets everything here except their own stars, which
+  // they don't have. The page is otherwise identical — the film is public.
+  const [movie, related, viewer] = await Promise.all([
     loadMovie(id),
     getRelatedMovies(supabase, id),
-    getRatingsByMovie(supabase),
-    getProfile(supabase),
+    getViewer(supabase),
   ]);
 
   if (!movie) notFound();
 
+  const ratings = viewer ? await getRatingsByMovie(supabase) : new Map<number, number>();
+
   const ratingsById = Object.fromEntries(ratings);
   const backdrop = backdropUrl(movie.backdrop_path);
 
-  const email = user.email ?? "signed in";
-
   return (
-    <AppShell
-      email={email}
-      displayName={displayNameFor(profile?.display_name ?? null, email)}
-      avatarUrl={avatarUrl(profile?.avatar_path)}
-      initials={initialsFor(profile?.display_name ?? null, email)}
-    >
+    <AppShell viewer={viewer}>
       <main className="flex-1 pb-24">
         {/* The same slot the home page's hero occupies, down to the two
             gradients: a film should not open into a differently shaped page

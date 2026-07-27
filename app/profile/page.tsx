@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 
 import { AppShell } from "@/app/components/app-shell";
 import { PosterCard } from "@/app/components/poster-card";
 import { ProfileIdentity } from "@/app/components/profile-identity";
+import { SignInPrompt } from "@/app/components/sign-in-prompt";
+import { getViewer } from "@/lib/auth/viewer";
 import { getRatedMovies } from "@/lib/movies/catalog";
-import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
-import { getProfile } from "@/lib/profiles/queries";
 import { formatWatchTime, tasteStats, type StarBucket } from "@/lib/profiles/stats";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -17,31 +16,41 @@ const MONTH_YEAR = new Intl.DateTimeFormat("en-US", { month: "long", year: "nume
 
 export default async function ProfilePage() {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const viewer = await getViewer(supabase);
 
-  const [profile, rated] = await Promise.all([
-    getProfile(supabase),
-    getRatedMovies(supabase),
-  ]);
+  // The one page that is nothing but your own data. There is nowhere to send
+  // someone without an account now that sign-in isn't a place, so the page
+  // stays put and asks — and once they're in, `router.refresh()` fills this
+  // very render in behind the panel.
+  if (!viewer) {
+    return (
+      <AppShell viewer={null}>
+        <main className="page-container flex flex-1 items-center justify-center pt-28 pb-24">
+          <SignInPrompt
+            heading="Your profile is waiting"
+            body="How you score things, what you gravitate towards, and every film you've rated. Sign in to see yours."
+            reason="To see your profile"
+          />
+        </main>
+      </AppShell>
+    );
+  }
 
-  const email = user.email ?? "signed in";
-  const name = displayNameFor(profile?.display_name ?? null, email);
-  const initials = initialsFor(profile?.display_name ?? null, email);
-  const picture = avatarUrl(profile?.avatar_path);
+  const rated = await getRatedMovies(supabase);
+  const { email, profile, displayName: name, initials, avatarUrl: picture } = viewer;
   const stats = tasteStats(rated);
-  const memberSince = MONTH_YEAR.format(new Date(profile?.created_at ?? user.created_at));
+  const memberSince = MONTH_YEAR.format(
+    new Date(profile?.created_at ?? viewer.createdAt),
+  );
   const ratingsById = Object.fromEntries(rated.map((entry) => [entry.movie.id, entry.rating]));
   const notes = rated.filter((entry) => entry.notes);
 
   return (
-    <AppShell email={email} displayName={name} avatarUrl={picture} initials={initials}>
+    <AppShell viewer={viewer}>
       <main className="page-container flex-1 pt-28 pb-24">
         <div className="flex flex-col gap-12">
           <ProfileIdentity
-            userId={user.id}
+            userId={viewer.id}
             email={email}
             name={name}
             displayName={profile?.display_name ?? null}

@@ -1,17 +1,15 @@
-import { redirect } from "next/navigation";
-
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
 import { Hero } from "@/app/components/hero";
+import { getViewer } from "@/lib/auth/viewer";
 import {
   getBecauseYouRated,
   getByGenre,
   getRatingsByMovie,
   getTopRated,
   getTrending,
+  type BecauseYouRated,
 } from "@/lib/movies/catalog";
-import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
-import { getProfile } from "@/lib/profiles/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /** The genre shelf follows the user's taste when there is any to follow. */
@@ -41,21 +39,20 @@ function favouriteGenre(
 export default async function Home() {
   const supabase = await createServerSupabase();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // The proxy already gates this, but a page rendering a signed-in shell
-  // shouldn't depend on that alone.
-  if (!user) redirect("/login");
-
-  const [trending, topRated, ratings, personalized, profile] = await Promise.all([
+  // The catalog is the same for everyone, so it loads alongside the identity
+  // check rather than behind it. Only the personal rows wait on the answer.
+  const [viewer, trending, topRated] = await Promise.all([
+    getViewer(supabase),
     getTrending(supabase, 20),
     getTopRated(supabase, { limit: 20 }),
-    getRatingsByMovie(supabase),
-    getBecauseYouRated(supabase, 20),
-    getProfile(supabase),
   ]);
+
+  // Signed out there is no taste to read: no stars set, and nothing to seed the
+  // personalized row from. Skipped rather than queried — RLS would return an
+  // empty set anyway, and asking for it says something that isn't true.
+  const [ratings, personalized]: [Map<number, number>, BecauseYouRated | null] = viewer
+    ? await Promise.all([getRatingsByMovie(supabase), getBecauseYouRated(supabase, 20)])
+    : [new Map(), null];
 
   // Genres for the rated films, to pick a shelf that matches their taste.
   const ratedIds = [...ratings.keys()];
@@ -64,6 +61,8 @@ export default async function Home() {
     : { data: [] };
   const genresByMovie = new Map((ratedRows ?? []).map((row) => [row.id, row.genres]));
 
+  // The fallback is also what every signed-out visitor sees, which is why it's
+  // a shelf that stands on its own rather than a stand-in for a missing one.
   const genre = favouriteGenre(ratings, genresByMovie) ?? "Science Fiction";
   const genreRow = await getByGenre(supabase, genre, 20);
 
@@ -74,15 +73,8 @@ export default async function Home() {
 
   const ratingsById = Object.fromEntries(ratings);
 
-  const email = user.email ?? "signed in";
-
   return (
-    <AppShell
-      email={email}
-      displayName={displayNameFor(profile?.display_name ?? null, email)}
-      avatarUrl={avatarUrl(profile?.avatar_path)}
-      initials={initialsFor(profile?.display_name ?? null, email)}
-    >
+    <AppShell viewer={viewer}>
       <main className="flex-1 pb-24">
         {/* Outside the container on purpose: the backdrop is the one full-width
             thing on the page. */}
