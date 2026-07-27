@@ -25,6 +25,11 @@ const nextConfig: NextConfig = {
         hostname: supabaseHost,
         pathname: "/storage/v1/object/public/avatars/**",
       },
+      {
+        // A Google account's own picture, used as the default avatar.
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
     ],
   },
 };

@@ -235,6 +235,26 @@ function AuthOverlay({
     router.refresh();
   }
 
+  /**
+   * Google takes the browser away and back, so there's no `finish()` to call
+   * here — `/auth/callback` does the redirect once the session exists, and
+   * the panel just goes along for the ride.
+   */
+  async function continueWithGoogle() {
+    setBusy(true);
+    setError(null);
+    const supabase = createBrowserSupabase();
+
+    const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (oauthError) {
+      setError(readableAuthError(oauthError.code, oauthError.message));
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
       <button
@@ -278,21 +298,22 @@ function AuthOverlay({
             it, and a second door doesn't help them through the first. */}
         {mode !== "forgot" && (
           <>
-            {/* UI only for now — wiring to Supabase's Google provider comes next. */}
-            {/* <button
+            <button
               type="button"
+              onClick={continueWithGoogle}
+              disabled={busy}
               className="btn btn-quiet mt-5 h-12 w-full text-base"
             >
               <GoogleMark />
               {mode === "signin" ? "Log in with Google" : "Sign up with Google"}
-            </button> */}
+            </button>
 
             {/* Names what's below it rather than saying "or" into empty space. */}
-            {/* <div className="my-5 flex w-full items-center gap-3">
+            <div className="my-5 flex w-full items-center gap-3">
               <span className="h-px flex-1 bg-ink-line" />
               <span className="meta !text-xs">or continue with email</span>
               <span className="h-px flex-1 bg-ink-line" />
-            </div> */}
+            </div>
           </>
         )}
 
