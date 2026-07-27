@@ -3,8 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
-import { removeAvatar, setAvatar, updateDisplayName } from "@/app/actions/profile";
+import {
+  removeAvatar,
+  setAvatar,
+  updateDisplayName,
+  updateUsername,
+} from "@/app/actions/profile";
 import { Avatar } from "@/app/components/avatar";
+import { normalizeUsername, USERNAME_MAX } from "@/lib/auth/username";
 import { AVATARS_BUCKET } from "@/lib/profiles/avatar";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
@@ -95,12 +101,18 @@ export function ProfileIdentity({
   const [editing, setEditing] = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<"upload" | "remove" | "name" | null>(null);
+  const [busy, setBusy] = useState<"upload" | "remove" | "name" | "handle" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const [draftName, setDraftName] = useState(displayName ?? "");
   const [savedName, setSavedName] = useState(false);
   const nameChanged = draftName.trim() !== (displayName ?? "").trim();
+
+  const [draftHandle, setDraftHandle] = useState(username ?? "");
+  const [savedHandle, setSavedHandle] = useState(false);
+  const handleChanged = draftHandle !== (username ?? "");
 
   async function handleFile(file: File) {
     setError(null);
@@ -142,6 +154,23 @@ export function ProfileIdentity({
     setBusy(null);
   }
 
+  async function handleUsernameSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSavedHandle(false);
+    setBusy("handle");
+
+    const result = await updateUsername(draftHandle);
+    setBusy(null);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setSavedHandle(true);
+    router.refresh();
+  }
+
   async function handleName(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -180,6 +209,7 @@ export function ProfileIdentity({
                 setEditing((current) => !current);
                 setError(null);
                 setSavedName(false);
+                setSavedHandle(false);
               }}
               aria-expanded={editing}
               aria-label={editing ? "Close profile editor" : "Edit profile"}
@@ -237,6 +267,55 @@ export function ProfileIdentity({
               <span className="meta !text-xs">JPEG, PNG, or WebP. Cropped square.</span>
             </div>
           </div>
+
+          {/* The handle, which nobody chose at signup — it was derived from
+              the email so the form could stay short and the Google path could
+              work at all. This is where it gets chosen. */}
+          <form onSubmit={handleUsernameSubmit}>
+            <label htmlFor="username" className="label">
+              Username
+            </label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {/* The "@" is drawn, not typed: it is how the handle is written
+                  everywhere else, and it is not part of the stored value. */}
+              <div className="relative w-full max-w-xs">
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-bone-dim"
+                >
+                  @
+                </span>
+                <input
+                  id="username"
+                  value={draftHandle}
+                  maxLength={USERNAME_MAX}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoComplete="username"
+                  onChange={(event) => {
+                    setDraftHandle(normalizeUsername(event.target.value));
+                    setSavedHandle(false);
+                  }}
+                  className="h-11 w-full rounded-md border border-ink-line bg-bone/8 pr-3 pl-7 text-bone placeholder:text-bone-dim focus:border-lamp focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy !== null || !handleChanged}
+                className="btn btn-quiet"
+              >
+                {busy === "handle" ? "Saving…" : "Save"}
+              </button>
+              {savedHandle && !handleChanged && (
+                <span role="status" className="meta !text-lamp">
+                  Saved
+                </span>
+              )}
+            </div>
+            <p className="meta mt-2 !text-xs">
+              Letters, numbers, and underscores. This is how people find you.
+            </p>
+          </form>
 
           <form onSubmit={handleName}>
             <label htmlFor="display-name" className="label">

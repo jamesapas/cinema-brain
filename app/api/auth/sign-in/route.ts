@@ -1,5 +1,4 @@
-import { looksLikeEmail, normalizeUsername } from "@/lib/auth/username";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { emailForIdentifier } from "@/lib/auth/lookup";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /**
@@ -42,16 +41,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Enter both fields." }, { status: 400 });
   }
 
-  let email: string;
-  if (looksLikeEmail(typed)) {
-    email = typed;
-  } else {
-    const resolved = await emailForUsername(normalizeUsername(typed));
-    // A handle nobody holds fails exactly like a wrong password, and takes the
-    // same path to get there.
-    if (!resolved) return Response.json({ error: REJECTED }, { status: 401 });
-    email = resolved;
-  }
+  // A handle nobody holds fails exactly like a wrong password, and takes the
+  // same path to get there.
+  const email = await emailForIdentifier(typed);
+  if (!email) return Response.json({ error: REJECTED }, { status: 401 });
 
   const supabase = await createServerSupabase();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -71,29 +64,4 @@ export async function POST(request: Request) {
   }
 
   return Response.json({ ok: true });
-}
-
-/** Service role: profiles are owner-read, and there is no owner here yet. */
-async function emailForUsername(username: string): Promise<string | null> {
-  const admin = createAdminClient();
-
-  const { data: profile, error } = await admin
-    .from("profiles")
-    .select("id")
-    .eq("username", username)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[api/auth/sign-in] username lookup", error);
-    return null;
-  }
-  if (!profile) return null;
-
-  const { data, error: userError } = await admin.auth.admin.getUserById(profile.id);
-  if (userError) {
-    console.error("[api/auth/sign-in] user lookup", userError);
-    return null;
-  }
-
-  return data.user?.email ?? null;
 }

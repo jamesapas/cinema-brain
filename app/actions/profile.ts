@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
+import { normalizeUsername, usernameProblem } from "@/lib/auth/username";
 import { AVATARS_BUCKET } from "@/lib/profiles/avatar";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -43,6 +44,69 @@ export async function updateDisplayName(name: string): Promise<ProfileResult> {
   if (error) {
     console.error("[updateDisplayName]", error);
     return { ok: false, error: "Couldn't save that name. Try again." };
+  }
+
+  revalidatePath("/profile");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+/**
+ * Changes the handle the account was given at signup.
+ *
+ * Nobody picks this at signup any more — the trigger derives one from the
+ * email — so this is where a handle is actually chosen, by the people who mind
+ * what theirs is. Availability is asked before the write so a taken name is a
+ * sentence rather than a constraint violation, and the unique index is still
+ * read for its own answer underneath, since two people can ask at once.
+ */
+export async function updateUsername(name: string): Promise<ProfileResult> {
+  const username = normalizeUsername(name);
+
+  const problem = usernameProblem(username);
+  if (problem) return { ok: false, error: problem };
+
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit your profile." };
+
+  const { data: available, error: availabilityError } = await supabase.rpc(
+    "username_available",
+    { candidate: username },
+  );
+
+  if (availabilityError) {
+    console.error("[updateUsername] availability", availabilityError);
+    return { ok: false, error: "Couldn't check that username. Try again." };
+  }
+
+  // Their own current handle reads as taken, which is true but unhelpful —
+  // saving an unchanged name shouldn't be an error.
+  if (!available) {
+    const { data: current } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (current?.username === username) return { ok: true };
+    return { ok: false, error: "That username is taken. Try another." };
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ username })
+    .eq("id", user.id);
+
+  if (error) {
+    // 23505: someone claimed it between the check and the write.
+    if (error.code === "23505") {
+      return { ok: false, error: "That username was just taken. Try another." };
+    }
+    console.error("[updateUsername]", error);
+    return { ok: false, error: "Couldn't save that username. Try again." };
   }
 
   revalidatePath("/profile");

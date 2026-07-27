@@ -21,7 +21,7 @@ import { createBrowserSupabase } from "@/lib/supabase/browser";
  * way; the fill alone does the separating.
  *
  * Everything to the right of the wordmark is the same signed in or out except
- * the last control: an account menu, or the one button that gets you one. The
+ * the last control: an account menu, or the buttons that get you one. The
  * catalog itself doesn't change, so neither should the bar over it.
  */
 export function SiteHeader({
@@ -82,7 +82,7 @@ export function SiteHeader({
               initials={initials ?? "?"}
             />
           ) : (
-            <SignInButton />
+            <AuthButtons />
           )}
         </div>
       </div>
@@ -113,22 +113,33 @@ function SearchButton() {
 /**
  * The signed-out end of the bar.
  *
- * One button, not a "Sign in" / "Sign up" pair: the panel it opens offers
- * both, and two adjacent buttons reading as a choice you must make before you
- * know what either means is a worse door than one. It opens over the page
- * rather than replacing it, so nothing is lost by trying it.
+ * Two doors, one of them painted: returning visitors look for "Log in" by
+ * name, and new ones need to be told an account is theirs to make. Only "Sign
+ * up" takes the gold, so the pair still reads as one recommended action rather
+ * than a choice you must resolve before you know what either means. Both open
+ * the panel over the page — on the form they name — so nothing is lost by
+ * trying either.
  */
-function SignInButton() {
+function AuthButtons() {
   const signIn = useSignIn();
 
   return (
-    <button
-      type="button"
-      onClick={() => signIn()}
-      className="btn btn-primary ml-1 h-9 px-4 text-sm"
-    >
-      Sign in
-    </button>
+    <div className="ml-1 flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => signIn(undefined, "signin")}
+        className="btn btn-quiet h-9 px-4 text-sm"
+      >
+        Log in
+      </button>
+      <button
+        type="button"
+        onClick={() => signIn(undefined, "signup")}
+        className="btn btn-primary h-9 px-4 text-sm"
+      >
+        Sign up
+      </button>
+    </div>
   );
 }
 
