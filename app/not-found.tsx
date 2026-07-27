@@ -26,10 +26,10 @@ export default function NotFound() {
       <div className="page-container flex flex-1 flex-col">
         <Link
           href="/"
-          className="mt-6 flex w-fit items-center gap-2 rounded text-lg font-bold tracking-tight text-bone transition-colors hover:text-lamp"
+          className="mt-6 flex w-fit items-center gap-2 rounded text-2xl font-bold tracking-tight text-bone transition-colors hover:text-lamp"
         >
-          <KinoAvatar size={32} />
-          Kino
+          <KinoAvatar size={40} />
+          <span className="mt-1">Kino</span>
         </Link>
 
         <div className="flex flex-1 flex-col items-center justify-center gap-8 pb-24 text-center">
