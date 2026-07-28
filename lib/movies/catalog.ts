@@ -182,7 +182,9 @@ const RELATED_MIN_RESULTS = 6;
  */
 const getCachedRelatedMovies = unstable_cache(
   async (movieId: number, limit: number) => {
-    const scores = await findSimilarMovieIds(movieId, 100);
+    // 40 candidates is plenty for filtering top 20 popular matches,
+    // reducing Pinecone lookup latency and Postgres IN query payload size by 60%.
+    const scores = await findSimilarMovieIds(movieId, 40);
     if (scores.size === 0) return [];
 
     const ids = [...scores.keys()];

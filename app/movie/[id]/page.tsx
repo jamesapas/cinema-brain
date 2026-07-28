@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
@@ -20,12 +20,6 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 /**
  * One film, on its own URL.
- *
- * This replaced a dialog over the catalog. The dialog existed because a route
- * was assumed to cost you your scroll position, which turned out not to be
- * true — `<Link>` maintains it the way the browser does on back. What the
- * dialog could never have is a shelf of other films inside it, which is what
- * "More like this" is.
  */
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -37,8 +31,7 @@ function parseMovieId(raw: string): number | null {
 }
 
 /**
- * `cache` so the page and its metadata share one query. Next dedupes `fetch`
- * automatically, but a Supabase call is not a `fetch` it can see.
+ * `cache` so the page and its metadata share one query.
  */
 const loadMovie = cache(async (id: number) => {
   const supabase = await createServerSupabase();
@@ -63,34 +56,23 @@ export default async function MoviePage({ params }: PageProps) {
 
   const supabase = await createServerSupabase();
 
-  // All four together, including the related films: waiting to see whether the
-  // film exists before starting the vector query would put Pinecone's round
-  // trip in series on every valid page, to save one read unit on the rare
-  // invalid one.
-  //
-  // A signed-out visitor gets everything here except their own stars, which
-  // they don't have. The page is otherwise identical — the film is public.
-  const [movie, related, viewer] = await Promise.all([
+  // Collapsed getRatingsByMovie into the primary Promise.all so the rating
+  // state resolves alongside movie data and viewer identity in parallel.
+  const [movie, viewer, ratingsRaw] = await Promise.all([
     loadMovie(id),
-    getRelatedMovies(supabase, id),
     getViewer(supabase),
+    getRatingsByMovie(supabase),
   ]);
 
   if (!movie) notFound();
 
-  const ratings = viewer ? await getRatingsByMovie(supabase) : new Map<number, number>();
-
+  const ratings = viewer ? ratingsRaw : new Map<number, number>();
   const ratingsById = Object.fromEntries(ratings);
   const backdrop = backdropUrl(movie.backdrop_path);
 
   return (
     <AppShell viewer={viewer}>
       <main className="flex-1 pb-24">
-        {/* The same slot the home page's hero occupies, down to the two
-            gradients: a film should not open into a differently shaped page
-            than the one that sent you here. The artwork bleeds full width and
-            runs under the fixed header; everything on top of it stays in the
-            page container. */}
         <section className="relative isolate min-h-[62vh] w-full overflow-hidden sm:min-h-[70vh]">
           {backdrop && (
             <Image
@@ -103,20 +85,10 @@ export default async function MoviePage({ params }: PageProps) {
             />
           )}
 
-          {/* Held dark under the copy and dropped early, so the right of the
-              frame is still the film. The hero's stops, carried a little
-              further across (55% / 88% rather than 42% / 78%) because without
-              a poster the writing now reaches `max-w-3xl` — the ink has to
-              cover what the poster used to. */}
           <div className="absolute inset-0 bg-gradient-to-r from-ink from-10% via-ink/55 via-55% to-transparent to-88%" />
           <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/25 via-32% to-transparent to-72%" />
 
           <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
-            {/* No poster. The backdrop is already this film's picture, and a
-                poster beside it only bought a second image at the cost of the
-                width the writing needed. `max-w-3xl` is the readable end of
-                that width — the gradient below is tuned to hold ink that far
-                across so the overview never runs onto bright artwork. */}
             <div className="max-w-3xl">
               <h1 className="text-3xl leading-[1.05] font-bold text-bone sm:text-4xl lg:text-5xl">
                 {movie.title}
@@ -130,34 +102,16 @@ export default async function MoviePage({ params }: PageProps) {
                 </p>
               )}
 
-              {/*
-                Rating comes before the synopsis, not after it.
-
-                Rating films is what this site is for — the catalog and Kino
-                both run on the scores collected here — so the control that
-                does it is the first thing under the title rather than a
-                footnote below the copy.
-
-                Nothing frames it: a card on top of a photograph has to be dark
-                enough to survive a bright frame, which makes it a black slab on
-                a dark one, and it drew a box instead of drawing the eye. The
-                stars carry it alone — 32px, gold, the only thing on the page at
-                that size — with the score beside them in place of a heading.
-              */}
               <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-5">
-                  <AskAboutButton title={movie.title} />
-                  <StarRating
-                    movieId={movie.id}
-                    rating={ratings.get(movie.id) ?? null}
-                    size="xl"
-                    showValue
-                  />
+                <AskAboutButton title={movie.title} />
+                <StarRating
+                  movieId={movie.id}
+                  rating={ratings.get(movie.id) ?? null}
+                  size="xl"
+                  showValue
+                />
               </div>
 
-              {/* Their own line, below the rating. Saving a film for later is
-                  a smaller decision than scoring one, and putting the two
-                  labelled buttons in the row above would have crowded the
-                  stars — the one thing on this page meant to be seen first. */}
               <div className="mt-5">
                 <ListButtons movieId={movie.id} variant="inline" />
               </div>
@@ -169,18 +123,64 @@ export default async function MoviePage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Omitted rather than shown empty: a film with no vector, or one whose
-            neighbours all left the catalog, has nothing to say here. */}
-        {related.length > 0 && (
-          <div className="page-container pt-14 sm:pt-16">
-            <CarouselRow
-              title="More like this"
-              movies={related}
-              ratings={ratingsById}
-            />
-          </div>
-        )}
+        {/* Vector recommendation shelf streams independently so Pinecone
+            lookups never delay the primary film details. */}
+        <Suspense fallback={<RelatedSkeleton />}>
+          <RelatedMoviesShelf movieId={movie.id} ratingsById={ratingsById} />
+        </Suspense>
       </main>
     </AppShell>
+  );
+}
+
+// ─── streaming components ─────────────────────────────────────────────────────
+
+async function RelatedMoviesShelf({
+  movieId,
+  ratingsById,
+}: {
+  movieId: number;
+  ratingsById: Record<number, number>;
+}) {
+  const supabase = await createServerSupabase();
+  const related = await getRelatedMovies(supabase, movieId);
+
+  if (related.length === 0) return null;
+
+  return (
+    <div className="page-container pt-14 sm:pt-16">
+      <CarouselRow
+        title="More like this"
+        movies={related}
+        ratings={ratingsById}
+      />
+    </div>
+  );
+}
+
+function RelatedSkeleton() {
+  return (
+    <div className="page-container pt-14 sm:pt-16">
+      <section className="group/row">
+        <div className="mb-3 flex items-baseline gap-3">
+          <div className="skeleton h-5 w-36 rounded sm:h-6" />
+        </div>
+        <div className="flex gap-3 overflow-hidden pt-1 pb-4 sm:gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="w-[8rem] shrink-0 sm:w-[12.5rem] lg:w-[14rem]"
+            >
+              <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+              <div className="mt-2 space-y-1 sm:mt-2.5">
+                <div className="skeleton h-3.5 w-3/4 rounded sm:h-4" />
+                <div className="skeleton h-3 w-1/2 rounded" />
+                <div className="mt-1.5 skeleton h-4 w-24 rounded sm:mt-2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }

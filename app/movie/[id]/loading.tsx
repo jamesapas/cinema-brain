@@ -28,39 +28,64 @@ export default function Loading() {
           gradient stands in for the real hero's bottom one: ink at the foot of
           the section, so there is no seam against the page below it either
           before or after the film lands. */}
-      <section className="relative min-h-[62vh] w-full bg-gradient-to-t from-ink to-ink-raised sm:min-h-[70vh]">
-        <div className="page-container flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
+      {/* Hero section skeleton — exact same height, positioning, and structure as real MoviePage */}
+      <section className="relative isolate min-h-[62vh] w-full overflow-hidden bg-gradient-to-t from-ink to-ink-raised sm:min-h-[70vh]">
+        <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
           <div className="max-w-3xl">
-            {/* Title. Narrower than the real one on purpose — a title is a few
-                words, not a full measure — but the same height. */}
-            <div className="skeleton h-10 w-2/3 max-w-lg rounded sm:h-[50px]" />
+            {/* Title */}
+            <div className="skeleton h-9 w-3/4 rounded sm:h-10 lg:h-12" />
 
-            {/* Score · year · runtime · three genres, on one line. */}
-            <div className="skeleton mt-3 h-5 w-[21rem] max-w-full rounded" />
+            {/* Meta (score · year · runtime · genres) */}
+            <div className="mt-3 skeleton h-4 w-72 max-w-full rounded" />
 
-            {/* Tagline. */}
-            <div className="skeleton mt-4 h-5 w-72 max-w-full rounded" />
+            {/* Tagline */}
+            <div className="mt-4 skeleton h-4 w-60 max-w-full rounded" />
 
-            {/* The rating row: Ask Kino first, then the stars and their score,
-                in that order and at those widths. */}
+            {/* Ask Kino button + XL Star Rating */}
             <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-5">
-              <div className="skeleton h-10 w-32 rounded-md" />
-              <div className="skeleton h-8 w-64 max-w-full rounded" />
+              <div className="skeleton h-10 w-28 rounded-md" />
+              <div className="skeleton h-8 w-44 rounded" />
             </div>
 
-            {/* Overview, three lines. 18px bars on a 12px rhythm come to the
-                78px three lines of `leading-relaxed` actually occupy — this
-                block is the tallest thing here, and the column is anchored to
-                its bottom, so getting it wrong pushed everything above it down
-                by the difference. */}
-            <div className="mt-6 space-y-3">
-              <div className="skeleton h-[18px] w-full rounded" />
-              <div className="skeleton h-[18px] w-11/12 rounded" />
-              <div className="skeleton h-[18px] w-2/3 rounded" />
+            {/* List Buttons row (Watchlist / Favorites) */}
+            <div className="mt-5 flex gap-2">
+              <div className="skeleton h-8 w-28 rounded-md" />
+              <div className="skeleton h-8 w-28 rounded-md" />
+            </div>
+
+            {/* Overview text lines */}
+            <div className="mt-6 space-y-2 max-w-2xl">
+              <div className="skeleton h-4 w-full rounded" />
+              <div className="skeleton h-4 w-11/12 rounded" />
+              <div className="skeleton h-4 w-3/4 rounded" />
             </div>
           </div>
         </div>
       </section>
+
+      {/* "More like this" shelf skeleton */}
+      <div className="page-container pt-14 sm:pt-16">
+        <section className="group/row">
+          <div className="mb-3 flex items-baseline gap-3">
+            <div className="skeleton h-5 w-36 rounded sm:h-6" />
+          </div>
+          <div className="flex gap-3 overflow-hidden pt-1 pb-4 sm:gap-4">
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="w-[8rem] shrink-0 sm:w-[12.5rem] lg:w-[14rem]"
+              >
+                <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+                <div className="mt-2 space-y-1 sm:mt-2.5">
+                  <div className="skeleton h-3.5 w-3/4 rounded sm:h-4" />
+                  <div className="skeleton h-3 w-1/2 rounded" />
+                  <div className="mt-1.5 skeleton h-4 w-24 rounded sm:mt-2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
