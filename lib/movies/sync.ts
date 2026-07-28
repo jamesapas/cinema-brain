@@ -8,6 +8,7 @@ import {
 import {
   TmdbError,
   discoverMovies,
+  getChangedMovieIds,
   getMovieDetails,
   mapWithConcurrency,
   type DiscoverOptions,
@@ -16,6 +17,8 @@ import {
 
 const UPSERT_CHUNK_SIZE = 200;
 const DETAIL_CONCURRENCY = 8;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export type SyncOptions = {
   pages?: number;
@@ -85,12 +88,12 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
  * actually changed. That keeps a routine popularity/vote refresh from queueing
  * the whole catalog for re-embedding.
  *
- * Returns how many rows now need embedding.
+ * Returns how many rows now need embedding, and how many of them were new.
  */
 async function upsertBatch(
   supabase: SupabaseClient<Database>,
   rows: MovieInsert[],
-): Promise<number> {
+): Promise<{ needsEmbedding: number; inserted: number }> {
   const { data: existing, error: selectError } = await supabase
     .from("movies")
     .select("id, embedding_input_hash, embedded_at")
@@ -134,7 +137,10 @@ async function upsertBatch(
     if (error) throw new Error(`Failed to upsert movies: ${error.message}`);
   }
 
-  return stale.length;
+  return {
+    needsEmbedding: stale.length,
+    inserted: rows.length - existingById.size,
+  };
 }
 
 /**
@@ -177,7 +183,8 @@ async function syncOnePage(
   result.skipped += discovered.results.length - rows.length;
 
   for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
-    result.needsEmbedding += await upsertBatch(supabase, batch);
+    const { needsEmbedding } = await upsertBatch(supabase, batch);
+    result.needsEmbedding += needsEmbedding;
     result.moviesUpserted += batch.length;
   }
 
@@ -233,6 +240,124 @@ export async function syncMovies(
       `page ${page}/${Math.min(startPage + pages - 1, discovered.total_pages)}: ` +
         `${upserted} movies upserted`,
     );
+  }
+
+  return result;
+}
+
+const CHANGES_BATCH_SIZE = 40;
+const CHANGES_BATCH_DELAY_MS = 250;
+
+export type ChangesSyncOptions = {
+  /** How far back to ask TMDB for changes. TMDB caps the window at 14 days. */
+  days?: number;
+  /**
+   * Vote floor for *new* titles only. The changes feed is unfiltered, so ~60% of
+   * a day's ids are films the discover sync deliberately never pulled — mostly
+   * zero-vote entries that would otherwise land in the catalog (and the embedding
+   * queue) at a few thousand a day. Rows already in the catalog are always
+   * refreshed, whatever their vote count.
+   */
+  minVoteCount?: number;
+  onProgress?: (message: string) => void;
+};
+
+export type ChangesSyncResult = {
+  changedIds: number;
+  inserted: number;
+  updated: number;
+  /** New titles held back by `minVoteCount`. */
+  skipped: number;
+  failed: number;
+  needsEmbedding: number;
+};
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Syncs only the movies TMDB reports as changed, instead of walking the catalog.
+ *
+ * Most entries in the changes feed are vote/popularity movement on old films, so
+ * the refresh writes vote_average, vote_count and popularity on update as well
+ * as insert — that is the whole point of the daily run. The embedding input
+ * (title/year/genres/tagline/overview) usually hasn't moved, so `upsertBatch`
+ * leaves `embedded_at` alone and only the genuinely re-worded rows get queued.
+ */
+export async function syncChangedMovies(
+  supabase: SupabaseClient<Database>,
+  { days = 1, minVoteCount = 10, onProgress = () => {} }: ChangesSyncOptions = {},
+): Promise<ChangesSyncResult> {
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+
+  const ids = await getChangedMovieIds({
+    startDate: isoDate(startDate),
+    endDate: isoDate(endDate),
+  });
+
+  const result: ChangesSyncResult = {
+    changedIds: ids.length,
+    inserted: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+    needsEmbedding: 0,
+  };
+
+  const batches = chunk(ids, CHANGES_BATCH_SIZE);
+
+  for (const [index, batch] of batches.entries()) {
+    const details = await mapWithConcurrency(batch, DETAIL_CONCURRENCY, async (id) => {
+      try {
+        return await getMovieDetails(id);
+      } catch (error) {
+        // 404s are withdrawn titles; anything else already exhausted its
+        // retries inside the client. Either way one bad id shouldn't end the run.
+        onProgress(
+          `skipping ${id}: ${error instanceof TmdbError ? `TMDB ${error.status}` : error}`,
+        );
+        return null;
+      }
+    });
+
+    const fetched = details.filter((entry): entry is TmdbMovieDetails => entry !== null);
+    result.failed += batch.length - fetched.length;
+
+    // Which of these we already hold decides whether the vote floor applies.
+    const { data: known, error: knownError } = await supabase
+      .from("movies")
+      .select("id")
+      .in(
+        "id",
+        fetched.map((entry) => entry.id),
+      );
+
+    if (knownError) {
+      throw new Error(`Failed to read existing movies: ${knownError.message}`);
+    }
+
+    const knownIds = new Set(known?.map((row) => row.id) ?? []);
+
+    const rows = fetched
+      .filter((entry) => {
+        if (knownIds.has(entry.id)) return true;
+        if ((entry.vote_count ?? 0) >= minVoteCount) return true;
+        result.skipped++;
+        return false;
+      })
+      .map(mapDetailsToRow);
+
+    if (rows.length > 0) {
+      const { needsEmbedding, inserted } = await upsertBatch(supabase, rows);
+      result.needsEmbedding += needsEmbedding;
+      result.inserted += inserted;
+      result.updated += rows.length - inserted;
+    }
+
+    // Spacing the batches keeps the run comfortably under TMDB's rate limit.
+    if (index < batches.length - 1) await sleep(CHANGES_BATCH_DELAY_MS);
   }
 
   return result;

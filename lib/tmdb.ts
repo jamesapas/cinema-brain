@@ -157,6 +157,54 @@ export function getMovieDetails(
   return tmdbFetch<TmdbMovieDetails>(`/movie/${id}`, { language });
 }
 
+export type TmdbChangesResponse = {
+  page: number;
+  total_pages: number;
+  total_results: number;
+  results: { id: number; adult: boolean | null }[];
+};
+
+export type ChangesOptions = {
+  /** YYYY-MM-DD. TMDB defaults to the last 24 hours when both dates are omitted. */
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+};
+
+export function getMovieChangesPage({
+  startDate,
+  endDate,
+  page = 1,
+}: ChangesOptions = {}): Promise<TmdbChangesResponse> {
+  return tmdbFetch<TmdbChangesResponse>("/movie/changes", {
+    start_date: startDate,
+    end_date: endDate,
+    page,
+  });
+}
+
+/**
+ * Every movie id TMDB reports as changed in the window, deduped.
+ *
+ * The same id shows up on multiple pages when several of its fields changed, so
+ * the caller gets a set rather than the raw result list.
+ */
+export async function getChangedMovieIds(
+  options: Omit<ChangesOptions, "page"> = {},
+): Promise<number[]> {
+  const ids = new Set<number>();
+
+  const first = await getMovieChangesPage({ ...options, page: 1 });
+  for (const entry of first.results) ids.add(entry.id);
+
+  for (let page = 2; page <= first.total_pages; page++) {
+    const next = await getMovieChangesPage({ ...options, page });
+    for (const entry of next.results) ids.add(entry.id);
+  }
+
+  return [...ids];
+}
+
 /**
  * Runs `fn` over `items` with at most `limit` in flight. TMDB tolerates ~50
  * req/s; a small pool keeps us well under that while still being fast.
