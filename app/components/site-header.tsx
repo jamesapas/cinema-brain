@@ -61,16 +61,14 @@ export function SiteHeader({
             mark that answers you in the panel. */}
         <KinoLogo />
 
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <NavLink href="/" icon="lucide:home" label="Home" />
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <NavLink href="/" icon="lucide:home" label="Home" />
 
-            {/* Public like the catalog, so it's here signed out too — the feed
-                is something to read before it's something to write in. */}
-            <NavLink href="/feed" icon="lucide:newspaper" label="Feed" />
+          {/* Public like the catalog, so it's here signed out too — the feed
+              is something to read before it's something to write in. */}
+          <NavLink href="/feed" icon="lucide:newspaper" label="Feed" />
 
-            <SearchButton />
-          </div>
+          <SearchButton />
 
           {email !== null ? (
             <AccountLink
@@ -92,6 +90,9 @@ export function SiteHeader({
  * Opens the search overlay rather than navigating. Finding a film is usually a
  * detour, so it shouldn't cost you the page you were on.
  */
+/** Standard icon size for all site header navigation controls. */
+const NAV_ICON_SIZE = 22;
+
 function SearchButton() {
   const openSearch = useSearchOverlay();
 
@@ -103,7 +104,7 @@ function SearchButton() {
       aria-keyshortcuts="Meta+K Control+K"
       className={ICON_CONTROL}
     >
-      <Icon icon="lucide:search" width={25} height={25} aria-hidden />
+      <Icon icon="lucide:search" width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
     </button>
   );
 }
@@ -122,19 +123,19 @@ function AuthButtons() {
   const signIn = useSignIn();
 
   return (
-    <div className="ml-1 flex items-center gap-2">
-      {/* Mobile single user icon button to prevent header overflow */}
+    <>
+      {/* Mobile single user icon button matching Home, Feed, Search spacing */}
       <button
         type="button"
         onClick={() => signIn()}
         aria-label="Sign in"
         className={`${ICON_CONTROL} sm:hidden`}
       >
-        <Icon icon="lucide:user" width={24} height={24} aria-hidden />
+        <Icon icon="lucide:user" width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
       </button>
 
       {/* Desktop full buttons */}
-      <div className="hidden items-center gap-2 sm:flex">
+      <div className="hidden items-center gap-2 sm:ml-1 sm:flex">
         <button
           type="button"
           onClick={() => signIn(undefined, "signin")}
@@ -150,7 +151,7 @@ function AuthButtons() {
           Sign up
         </button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -184,7 +185,7 @@ function NavLink({
       aria-current={current ? "page" : undefined}
       className={`${ICON_CONTROL} ${current ? "!text-bone" : ""}`}
     >
-      <Icon icon={icon} width={24} height={24} aria-hidden />
+      <Icon icon={icon} width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
     </Link>
   );
 }
@@ -220,7 +221,7 @@ function AccountLink({
       // under the cursor; the lift is what the eye actually catches.
       className="grid size-10 place-items-center rounded-full ring-2 ring-transparent transition duration-200 hover:scale-105 hover:ring-lamp/70"
     >
-      <Avatar url={avatarUrl} initials={initials} size={30} />
+      <Avatar url={avatarUrl} initials={initials} size={26} />
     </Link>
   );
 }
