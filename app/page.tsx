@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
 import { Hero } from "@/app/components/hero";
@@ -37,7 +39,20 @@ function favouriteGenre(
   return best;
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
+  // Supabase sometimes sends the OAuth `?code=` to the Site URL (root) instead
+  // of the intended `/auth/callback` when the redirect URL list doesn't match
+  // the path exactly. Forward it to the real handler rather than leaving the
+  // user staring at the catalog with no session.
+  const { code } = await searchParams;
+  if (code) {
+    redirect(`/auth/callback?code=${encodeURIComponent(code)}`);
+  }
+
   const supabase = await createServerSupabase();
 
   // The catalog is the same for everyone, so it loads alongside the identity
