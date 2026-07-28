@@ -203,6 +203,51 @@ export async function findSimilarMovieIds(
   return scores;
 }
 
+/**
+ * Fetches stored vector embeddings from Pinecone for a list of movie IDs.
+ * Uses Pinecone's fetch API (costs 0 OpenAI embedding calls).
+ */
+export async function fetchMovieVectors(
+  movieIds: number[],
+): Promise<Map<number, number[]>> {
+  if (movieIds.length === 0) return new Map();
+
+  const stringIds = movieIds.map(String);
+  const response = await getMoviesIndex().fetch({ ids: stringIds });
+
+  const vectors = new Map<number, number[]>();
+  if (response.records) {
+    for (const [idStr, record] of Object.entries(response.records)) {
+      if (record?.values && record.values.length > 0) {
+        vectors.set(Number(idStr), record.values);
+      }
+    }
+  }
+
+  return vectors;
+}
+
+/**
+ * Queries Pinecone using a raw vector embedding array (e.g. a user taste profile vector).
+ */
+export async function searchByTasteVector(
+  vector: number[],
+  limit = 100,
+): Promise<Map<number, number>> {
+  const response = await getMoviesIndex().query({
+    vector,
+    topK: limit,
+  });
+
+  const scores = new Map<number, number>();
+  for (const match of response.matches ?? []) {
+    scores.set(Number(match.id), match.score ?? 0);
+  }
+
+  return scores;
+}
+
+
 export type UserRating = {
   movie_id: number;
   title: string;
@@ -226,9 +271,13 @@ export async function getRatingHistory(
   supabase: SupabaseClient<Database>,
   input: RatingHistoryInput = {},
 ): Promise<UserRating[]> {
+  const user = (await supabase.auth.getUser()).data.user;
+  if (!user) return [];
+
   let query = supabase
     .from("user_movie_ratings")
     .select("movie_id, rating, notes, watched_at, movies(title, release_year, genres)")
+    .eq("user_id", user.id)
     .order("rating", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 

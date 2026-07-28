@@ -3,12 +3,12 @@ import { CarouselRow } from "@/app/components/carousel-row";
 import { Hero } from "@/app/components/hero";
 import { getViewer } from "@/lib/auth/viewer";
 import {
-  getBecauseYouRated,
   getByGenre,
   getRatingsByMovie,
+  getTopPicksForYou,
   getTopRated,
   getTrending,
-  type BecauseYouRated,
+  type TopPicksForYou,
 } from "@/lib/movies/catalog";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -50,8 +50,11 @@ export default async function Home() {
   // Signed out there is no taste to read: no stars set, and nothing to seed the
   // personalized row from. Skipped rather than queried — RLS would return an
   // empty set anyway, and asking for it says something that isn't true.
-  const [ratings, personalized]: [Map<number, number>, BecauseYouRated | null] = viewer
-    ? await Promise.all([getRatingsByMovie(supabase), getBecauseYouRated(supabase, 20)])
+  const [ratings, topPicks]: [Map<number, number>, TopPicksForYou | null] = viewer
+    ? await Promise.all([
+        getRatingsByMovie(supabase, viewer.id),
+        getTopPicksForYou(supabase, viewer.id, 20),
+      ])
     : [new Map(), null];
 
   // Genres for the rated films, to pick a shelf that matches their taste.
@@ -89,10 +92,11 @@ export default async function Home() {
             heroMovies.length > 0 ? "pt-6" : "pt-28"
           }`}
         >
-          {personalized && (
+          {topPicks && topPicks.movies.length > 0 && (
             <CarouselRow
-              title={`Because you rated ${personalized.seed.title}`}
-              movies={personalized.movies}
+              title="Top Picks for You"
+              note={topPicks.tasteSummary ?? undefined}
+              movies={topPicks.movies}
               ratings={ratingsById}
               priority
             />
@@ -102,7 +106,7 @@ export default async function Home() {
             title="Trending"
             movies={trending}
             ratings={ratingsById}
-            priority={!personalized}
+            priority={!topPicks}
           />
 
           <CarouselRow

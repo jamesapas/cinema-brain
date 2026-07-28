@@ -2,7 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
 import type { MovieCard } from "@/lib/movies/images";
-import { findSimilarMovieIds, searchByMeaning } from "@/lib/movies/search";
+import {
+  fetchMovieVectors,
+  findSimilarMovieIds,
+  searchByTasteVector,
+} from "@/lib/movies/search";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
 
 // Presentation helpers live in images.ts so client components can use them
@@ -175,10 +179,15 @@ export async function getRelatedMovies(
 /** The user's ratings keyed by movie, so cards can show current star state. */
 export async function getRatingsByMovie(
   supabase: SupabaseClient<Database>,
+  userId?: string,
 ): Promise<Map<number, number>> {
+  const targetUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
+  if (!targetUserId) return new Map();
+
   const { data, error } = await supabase
     .from("user_movie_ratings")
-    .select("movie_id, rating");
+    .select("movie_id, rating")
+    .eq("user_id", targetUserId);
 
   if (error) throw new Error(`Failed to read ratings: ${error.message}`);
 
@@ -315,66 +324,204 @@ export async function getRatedMovies(
   return rated;
 }
 
+export type TopPicksForYou = {
+  movies: MovieCard[];
+  tasteSummary: string | null;
+};
+
+/**
+ * Maps star rating (1–10) to a weight for composite vector accumulation.
+ * 9-10: +2.5 to +3.0
+ * 7-8: +1.0 to +1.5
+ * 5-6: 0.0 (neutral)
+ * 1-4: -1.0 to -2.0 (negative push)
+ */
+function ratingToWeight(rating: number): number {
+  if (rating >= 10) return 3.0;
+  if (rating >= 9) return 2.5;
+  if (rating >= 8) return 1.5;
+  if (rating >= 7) return 1.0;
+  if (rating >= 5) return 0.0;
+  if (rating >= 3) return -1.0;
+  return -2.0;
+}
+
+/**
+ * Computes dynamic taste summary string from rated movies (e.g. top genres among 6+ star ratings).
+ */
+function deriveTasteSummary(ratedItems: { rating: number; genres: string[] }[]): string | null {
+  const counts = new Map<string, number>();
+  for (const item of ratedItems) {
+    if (item.rating < 6) continue;
+    const weight = item.rating >= 8 ? 2 : 1;
+    for (const genre of item.genres) {
+      counts.set(genre, (counts.get(genre) ?? 0) + weight);
+    }
+  }
+
+  if (counts.size === 0) return null;
+
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).map((entry) => entry[0]);
+  const topGenres = sorted.slice(0, 3);
+
+  if (topGenres.length === 1) {
+    return `Based on your love for ${topGenres[0]}`;
+  } else if (topGenres.length === 2) {
+    return `Based on your ratings in ${topGenres[0]} & ${topGenres[1]}`;
+  } else {
+    return `Based on your ratings in ${topGenres[0]}, ${topGenres[1]} & ${topGenres[2]}`;
+  }
+}
+
+/**
+ * "Top Picks for You" — recommendations derived from the user's composite vector taste profile.
+ *
+ * Instead of anchoring to a single movie, we fetch stored 1536-dim vectors for all films
+ * rated by the user (using Pinecone fetch, costing 0 OpenAI API calls), compute a weighted
+ * normalized taste vector, and query Pinecone for closest matches across the catalog.
+ */
+export async function getTopPicksForYou(
+  supabase: SupabaseClient<Database>,
+  userId?: string,
+  limit = 20,
+): Promise<TopPicksForYou | null> {
+  const targetUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
+  if (!targetUserId) return null;
+
+  const { data: userRatings, error } = await supabase
+    .from("user_movie_ratings")
+    .select("movie_id, rating, movies(title, genres)")
+    .eq("user_id", targetUserId)
+    .not("rating", "is", null);
+
+  if (error) throw new Error(`Failed to read user ratings for taste profile: ${error.message}`);
+  if (!userRatings || userRatings.length === 0) return null;
+
+  const ratedItems = userRatings
+    .filter((r): r is typeof r & { movies: { title: string; genres: string[] } } =>
+      Boolean(r.movies && r.rating !== null),
+    )
+    .map((r) => ({
+      movieId: r.movie_id,
+      rating: r.rating!,
+      title: r.movies.title,
+      genres: r.movies.genres,
+    }));
+
+  if (ratedItems.length === 0) return null;
+
+  const ratedMovieIds = new Set(ratedItems.map((item) => item.movieId));
+  const tasteSummary = deriveTasteSummary(ratedItems);
+
+  // Single rating fallback: if only 1 rating, use nearest vector neighbors of that movie
+  if (ratedItems.length === 1) {
+    const seedMovie = ratedItems[0];
+    const related = await getRelatedMovies(supabase, seedMovie.movieId, limit + 5);
+    const filtered = related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit);
+    return {
+      movies: filtered,
+      tasteSummary: `Based on your rating for ${seedMovie.title}`,
+    };
+  }
+
+  // Multi-rating: Fetch stored embedding vectors from Pinecone (0 OpenAI calls)
+  const vectorMap = await fetchMovieVectors(ratedItems.map((item) => item.movieId));
+
+  let dim = 1536;
+  const compositeVector = new Float64Array(dim);
+  let totalWeight = 0;
+
+  for (const item of ratedItems) {
+    const vec = vectorMap.get(item.movieId);
+    if (!vec || vec.length === 0) continue;
+    dim = vec.length;
+    const weight = ratingToWeight(item.rating);
+    if (weight === 0) continue;
+
+    totalWeight += Math.abs(weight);
+    for (let i = 0; i < dim; i++) {
+      compositeVector[i] += vec[i] * weight;
+    }
+  }
+
+  // If no weights accumulated or vectors missing, fallback to highest rated movie's neighbors
+  if (totalWeight === 0) {
+    const topRatedItem = [...ratedItems].sort((a, b) => b.rating - a.rating)[0];
+    const related = await getRelatedMovies(supabase, topRatedItem.movieId, limit + 5);
+    return {
+      movies: related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit),
+      tasteSummary,
+    };
+  }
+
+  // L2 Normalize composite vector to unit vector for Cosine similarity
+  let magnitudeSq = 0;
+  for (let i = 0; i < dim; i++) {
+    magnitudeSq += compositeVector[i] * compositeVector[i];
+  }
+  const magnitude = Math.sqrt(magnitudeSq);
+
+  if (magnitude === 0) return null;
+
+  const normalizedVector: number[] = new Array(dim);
+  for (let i = 0; i < dim; i++) {
+    normalizedVector[i] = compositeVector[i] / magnitude;
+  }
+
+  // Over-fetch vector candidates from Pinecone (100 matches)
+  const scores = await searchByTasteVector(normalizedVector, 100);
+  if (scores.size === 0) return null;
+
+  // Filter out already rated movies
+  const candidateIds = [...scores.keys()].filter((id) => !ratedMovieIds.has(id));
+  if (candidateIds.length === 0) return null;
+
+  // Apply vote count floor (same as getRelatedMovies)
+  let rows = unwrap(
+    await supabase
+      .from("movies")
+      .select(CARD_SELECT)
+      .in("id", candidateIds)
+      .gte("vote_count", RELATED_MIN_VOTES),
+    "Top picks",
+  );
+
+  if (rows.length < RELATED_MIN_RESULTS) {
+    rows = unwrap(
+      await supabase.from("movies").select(CARD_SELECT).in("id", candidateIds),
+      "Top picks",
+    );
+  }
+
+  // Sort by Pinecone similarity score descending
+  const ordered = rows
+    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
+    .slice(0, limit);
+
+  return {
+    movies: ordered,
+    tasteSummary,
+  };
+}
+
 export type BecauseYouRated = {
   seed: { title: string; rating: number };
   movies: MovieCard[];
 };
 
-/**
- * The one personalized row driven by vector search, seeded from the user's
- * highest-rated film. This is the only row that costs an embedding call, which
- * is why every other row is plain Postgres.
- *
- * Returns null when the user has no ratings yet — the caller omits the row
- * rather than showing an empty shelf.
- */
+/** Deprecated backward-compatible wrapper for getTopPicksForYou */
 export async function getBecauseYouRated(
   supabase: SupabaseClient<Database>,
   limit = 20,
 ): Promise<BecauseYouRated | null> {
-  const { data: favorites, error } = await supabase
-    .from("user_movie_ratings")
-    .select("movie_id, rating, movies(title, overview, genres)")
-    .not("rating", "is", null)
-    .order("rating", { ascending: false })
-    .limit(1);
-
-  if (error) throw new Error(`Failed to read favorites: ${error.message}`);
-
-  const favorite = favorites?.[0];
-  if (!favorite?.movies || favorite.rating === null) return null;
-
-  const seedText = [
-    favorite.movies.title,
-    favorite.movies.genres.join(", "),
-    favorite.movies.overview,
-  ]
-    .filter((part): part is string => Boolean(part))
-    .join(". ");
-
-  // Over-fetch so dropping the seed itself and already-rated films doesn't
-  // leave a stubby row.
-  const matches = await searchByMeaning(supabase, { query: seedText, limit: limit + 10 });
-  const rated = await getRatingsByMovie(supabase);
-
-  const keepIds = matches
-    .map((match) => match.movie_id)
-    .filter((id) => id !== favorite.movie_id && !rated.has(id))
-    .slice(0, limit);
-
-  if (keepIds.length === 0) return null;
-
-  const cards = await hydrateCards(supabase, keepIds);
-  // Preserve similarity order; Postgres returned these in arbitrary order.
-  const ordered = keepIds
-    .map((id) => cards.get(id))
-    .filter((card): card is MovieCard => card !== undefined);
-
+  const picks = await getTopPicksForYou(supabase, undefined, limit);
+  if (!picks || picks.movies.length === 0) return null;
   return {
-    seed: { title: favorite.movies.title, rating: favorite.rating },
-    movies: withPoster(ordered),
+    seed: { title: picks.tasteSummary ?? "Your Top Picks", rating: 10 },
+    movies: picks.movies,
   };
 }
+
 
 /**
  * Feature film for the hero: well-regarded, has a backdrop, and the user hasn't
