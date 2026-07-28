@@ -5,6 +5,7 @@ import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
 import { KinoTake } from "@/app/components/kino-take";
+import { PostList } from "@/app/components/post-list";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { RatedFilmsGrid } from "@/app/components/rated-films-grid";
 import { SignInPrompt } from "@/app/components/sign-in-prompt";
@@ -15,6 +16,8 @@ import { getFollowCounts, isFollowing } from "@/lib/profiles/follows";
 import { getProfileByUsername } from "@/lib/profiles/queries";
 import { formatWatchTime, tasteStats, type StarBucket } from "@/lib/profiles/stats";
 import { MIN_RATED_FOR_SUMMARY, summaryIsStale } from "@/lib/profiles/taste-summary";
+import type { FeedEntry } from "@/lib/social/posts";
+import { getUserEntries } from "@/lib/social/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Icon } from "@iconify/react";
 
@@ -26,6 +29,10 @@ import { Icon } from "@iconify/react";
  * grid. A visitor gets the same header shape without the private nav, a
  * follow button in the rail's place, and the rated grid minus notes — those
  * stay written for the owner's own reading, not the account's audience.
+ *
+ * Posts sit between the taste summary and the rated grid: what someone has
+ * said lately is more current than what they've scored, and it's the half of
+ * the page a visitor arriving from the feed came to read.
  */
 
 /** Short form for the visitor rail's tight stats — "Jul 2026", not "July 2026". */
@@ -58,10 +65,11 @@ export default async function UsernamePage({ params }: PageProps) {
     notFound();
   }
 
-  const [rated, counts, viewerFollows] = await Promise.all([
+  const [rated, counts, viewerFollows, entries] = await Promise.all([
     getRatedMovies(supabase, profile.id),
     getFollowCounts(supabase, profile.id),
     viewer && !isOwner ? isFollowing(supabase, viewer.id, profile.id) : Promise.resolve(false),
+    getUserEntries(supabase, profile.id, viewer?.id ?? null),
   ]);
 
   const name = isOwner ? viewer!.displayName : displayNameFor(profile.display_name, profile.username);
@@ -181,27 +189,39 @@ export default async function UsernamePage({ params }: PageProps) {
         )}
 
         <div className="mt-10 flex flex-col gap-12 lg:mt-0">
+          {stats.count > 0 && (
+            <div className="grid gap-10 lg:grid-cols-2">
+              <RatingSpread
+                distribution={stats.distribution}
+                total={stats.count}
+                averageStars={stats.averageStars}
+                isOwner={isOwner}
+              />
+              <KinoTake
+                name={name}
+                isOwner={isOwner}
+                summary={profile.taste_summary}
+                stale={stale}
+                ratedCount={stats.count}
+                minRated={MIN_RATED_FOR_SUMMARY}
+              />
+            </div>
+          )}
+
+          {/* Its own block rather than part of the ratings branch below: a
+              profile with nothing scored can still be full of posts, and the
+              two halves of a person here don't depend on each other. */}
+          <PostsSection
+            entries={entries}
+            isOwner={isOwner}
+            name={name}
+            viewerId={viewer?.id ?? null}
+          />
+
           {stats.count === 0 ? (
             <EmptyState isOwner={isOwner} />
           ) : (
             <>
-              <div className="grid gap-10 lg:grid-cols-2">
-                <RatingSpread
-                  distribution={stats.distribution}
-                  total={stats.count}
-                  averageStars={stats.averageStars}
-                  isOwner={isOwner}
-                />
-                <KinoTake
-                  name={name}
-                  isOwner={isOwner}
-                  summary={profile.taste_summary}
-                  stale={stale}
-                  ratedCount={stats.count}
-                  minRated={MIN_RATED_FOR_SUMMARY}
-                />
-              </div>
-
               <RatedFilmsGrid
                 rated={rated}
                 heading={isOwner ? "Films you’ve rated" : "Films rated"}
@@ -231,6 +251,61 @@ export default async function UsernamePage({ params }: PageProps) {
         </div>
       </main>
     </AppShell>
+  );
+}
+
+/**
+ * What this person has posted, and what they've put back in front of their
+ * followers.
+ *
+ * Shown to a visitor only when there is something to show — an empty heading on
+ * a stranger's page is a section that exists for the site's benefit rather than
+ * the reader's. The owner always gets it, because "you haven't posted" is
+ * information to them, and the prompt is the only place on this page that says
+ * posting is a thing you can do.
+ */
+function PostsSection({
+  entries,
+  isOwner,
+  name,
+  viewerId,
+}: {
+  entries: FeedEntry[];
+  isOwner: boolean;
+  name: string;
+  viewerId: string | null;
+}) {
+  if (entries.length === 0 && !isOwner) return null;
+
+  return (
+    <section>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <h2 className="text-xl font-bold text-bone">
+          {isOwner ? "Your posts" : `Posts by ${name}`}
+        </h2>
+        {entries.length > 0 && (
+          <p className="meta">
+            {entries.length} {entries.length === 1 ? "post" : "posts"}
+          </p>
+        )}
+      </div>
+
+      {entries.length === 0 ? (
+        <>
+          <p className="mt-2 max-w-md leading-relaxed text-bone-soft">
+            You haven&rsquo;t posted yet. Write about something you&rsquo;ve just watched
+            and it shows up here and in everyone&rsquo;s feed.
+          </p>
+          <Link href="/feed" className="btn btn-quiet mt-5">
+            Write a post
+          </Link>
+        </>
+      ) : (
+        <div className="mt-3 max-w-2xl">
+          <PostList entries={entries} viewerId={viewerId} />
+        </div>
+      )}
+    </section>
   );
 }
 

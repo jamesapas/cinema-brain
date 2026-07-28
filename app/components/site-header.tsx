@@ -72,6 +72,10 @@ export function SiteHeader({
           <div className="flex items-center gap-1.5">
             <NavLink href="/" icon="lucide:home" label="Home" />
 
+            {/* Public like the catalog, so it's here signed out too — the feed
+                is something to read before it's something to write in. */}
+            <NavLink href="/feed" icon="lucide:newspaper" label="Feed" />
+
             <SearchButton />
           </div>
 
