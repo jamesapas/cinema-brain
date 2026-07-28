@@ -1,4 +1,4 @@
-name: Sync TMDB changes
+name: Sync TMDB
 
 on:
   schedule:
@@ -12,7 +12,7 @@ on:
         default: "1"
 
 concurrency:
-  group: sync-tmdb-changes
+  group: sync-tmdb
   cancel-in-progress: false
 
 jobs:
@@ -29,8 +29,47 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run sync:changes -- --days=${{ inputs.days || '1' }}
+      # Metadata drift across the whole catalog: titles, overviews, artwork,
+      # plus votes on anything TMDB happened to touch.
+      - name: Sync changed movies
+        run: npm run sync:changes -- --days=${{ inputs.days || '1' }}
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+
+      # The changes feed is edit-driven, so a film climbing the charts without
+      # being edited never appears in it — and the trending rail orders by
+      # exactly that number. This sweep pulls TMDB's current top ~300 by
+      # popularity, which is what keeps the homepage honest. min-votes=1 so a
+      # surging new release isn't filtered out before it has accumulated votes.
+      - name: Refresh trending
+        run: npm run sync:movies -- --pages=15 --min-votes=1
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+
+      # New releases enter TMDB below the changes-sync vote floor, so they land
+      # there only opportunistically. One query for the current year closes that
+      # gap deterministically.
+      - name: Sweep current year
+        run: |
+          YEAR="$(date -u +%Y)"
+          npm run sync:movies -- --from-year="$YEAR" --to-year="$YEAR" --min-votes=10
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          TMDB_ACCESS_TOKEN: ${{ secrets.TMDB_ACCESS_TOKEN }}
+
+      # The syncs only flag rows (embedded_at = null); nothing else performs the
+      # work, so without this step Pinecone drifts behind Postgres by a day's
+      # worth of changes every run. Runs last: a sync failure above should not
+      # cost embedding spend, and anything left pending is picked up tomorrow.
+      - name: Embed pending movies
+        run: npm run embed:movies
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}

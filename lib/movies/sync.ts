@@ -279,11 +279,18 @@ function isoDate(date: Date): string {
 /**
  * Syncs only the movies TMDB reports as changed, instead of walking the catalog.
  *
- * Most entries in the changes feed are vote/popularity movement on old films, so
- * the refresh writes vote_average, vote_count and popularity on update as well
- * as insert — that is the whole point of the daily run. The embedding input
- * (title/year/genres/tagline/overview) usually hasn't moved, so `upsertBatch`
- * leaves `embedded_at` alone and only the genuinely re-worded rows get queued.
+ * The feed is *edit*-driven, not popularity-driven: ~5K ids a day out of TMDB's
+ * million-plus catalog. Big titles appear because someone touched a poster, a
+ * translation or a cast entry — not because their numbers moved. So this run
+ * refreshes vote_average, vote_count and popularity on the rows it does see, but
+ * it is not a reliable way to keep popularity fresh: a film whose popularity
+ * climbs without anyone editing it never shows up here. That gap is covered by
+ * the popularity-sorted discover sweep (`syncMovies`), which is what the
+ * trending rail actually depends on.
+ *
+ * The embedding input (title/year/genres/tagline/overview) usually hasn't moved,
+ * so `upsertBatch` leaves `embedded_at` alone and only genuinely re-worded rows
+ * get queued for re-embedding.
  */
 export async function syncChangedMovies(
   supabase: SupabaseClient<Database>,
