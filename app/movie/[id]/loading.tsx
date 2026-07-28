@@ -63,6 +63,23 @@ export default function Loading() {
         </div>
       </section>
 
+      {/* Cast section skeleton */}
+      <div className="page-container pt-12 sm:pt-14">
+        <div className="mb-4 skeleton h-5 w-24 rounded sm:h-6" />
+        <div className="no-scrollbar flex gap-3 overflow-hidden pt-1 pb-3">
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="flex w-24 shrink-0 flex-col items-center sm:w-28"
+            >
+              <div className="skeleton size-16 rounded-full sm:size-20" />
+              <div className="mt-2 skeleton h-3.5 w-16 rounded" />
+              <div className="mt-1 skeleton h-3 w-12 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* "More like this" shelf skeleton */}
       <div className="page-container pt-14 sm:pt-16">
         <section className="group/row">

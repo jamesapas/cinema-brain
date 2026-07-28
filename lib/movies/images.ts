@@ -31,6 +31,10 @@ export function backdropUrl(path: string | null, size: "w1280" | "original" = "w
   return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : null;
 }
 
+export function profileUrl(path: string | null, size: "w185" | "h632" = "w185") {
+  return path ? `${TMDB_IMAGE_BASE}/${size}${path}` : null;
+}
+
 /** "1h 58m" reads faster than "118 min" when it sits in a row of metadata. */
 export function formatRuntime(minutes: number | null): string | null {
   if (!minutes || minutes <= 0) return null;

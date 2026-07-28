@@ -16,7 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // without pulling this module's server-only dependencies. Re-exported here for
 // server callers that already import from catalog.
 export type { MovieCard } from "@/lib/movies/images";
-export { posterUrl, backdropUrl } from "@/lib/movies/images";
+export { posterUrl, backdropUrl, profileUrl } from "@/lib/movies/images";
 
 /**
  * Browse-side queries and projections.
@@ -609,4 +609,60 @@ export async function getHeroMovie(
   if (error) throw new Error(`Hero query failed: ${error.message}`);
 
   return data?.[0] ?? null;
+}
+
+export type MovieCastItem = {
+  id: number;
+  name: string;
+  character: string | null;
+  profile_path: string | null;
+};
+
+/**
+ * Fetch top cast members from TMDB API for a given movie ID.
+ * Cached per movie for 24 hours (86400s) using unstable_cache.
+ */
+const getCachedMovieCast = unstable_cache(
+  async (movieId: number): Promise<MovieCastItem[]> => {
+    const token = process.env.TMDB_ACCESS_TOKEN;
+    if (!token) return [];
+
+    try {
+      const res = await fetch(
+        `https://api.themoviedb.org/3/movie/${movieId}/credits?language=en-US`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "application/json",
+          },
+        },
+      );
+
+      if (!res.ok) return [];
+
+      const data = (await res.json()) as {
+        cast?: Array<{
+          id: number;
+          name: string;
+          character: string;
+          profile_path: string | null;
+        }>;
+      };
+
+      return (data.cast ?? []).slice(0, 14).map((c) => ({
+        id: c.id,
+        name: c.name,
+        character: c.character || null,
+        profile_path: c.profile_path,
+      }));
+    } catch {
+      return [];
+    }
+  },
+  ["catalog-movie-cast"],
+  { revalidate: 86400, tags: ["catalog", "movie-cast"] },
+);
+
+export async function getMovieCast(movieId: number): Promise<MovieCastItem[]> {
+  return getCachedMovieCast(movieId);
 }
