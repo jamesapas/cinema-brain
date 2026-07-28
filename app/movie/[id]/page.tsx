@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { cache, Suspense } from "react";
+import { cache } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { CastRow } from "@/app/components/cast-row";
@@ -10,12 +10,13 @@ import { AskAboutButton } from "@/app/components/chat-overlay";
 import { ListButtons } from "@/app/components/movie-lists";
 import { MovieMeta } from "@/app/components/movie-meta";
 import { StarRating } from "@/app/components/star-rating";
+import { TrailerButton } from "@/app/components/trailer-button";
 import {
   getMovieById,
   getMovieCast,
+  getMovieTrailerKey,
   getRatingsByMovie,
   getRelatedMovies,
-  profileUrl,
 } from "@/lib/movies/catalog";
 import { backdropUrl } from "@/lib/movies/images";
 import { getViewer } from "@/lib/auth/viewer";
@@ -59,12 +60,16 @@ export default async function MoviePage({ params }: PageProps) {
 
   const supabase = await createServerSupabase();
 
-  // Collapsed getRatingsByMovie into the primary Promise.all so the rating
-  // state resolves alongside movie data and viewer identity in parallel.
-  const [movie, viewer, ratingsRaw] = await Promise.all([
+  // Collapsed all queries into the primary Promise.all so movie data, rating state,
+  // trailer key, cast, and related shelf resolve concurrently in parallel.
+  // This guarantees a single, instant transition from loading.tsx to full page.
+  const [movie, viewer, ratingsRaw, trailerKey, cast, related] = await Promise.all([
     loadMovie(id),
     getViewer(supabase),
     getRatingsByMovie(supabase),
+    getMovieTrailerKey(id),
+    getMovieCast(id),
+    getRelatedMovies(supabase, id),
   ]);
 
   if (!movie) notFound();
@@ -93,20 +98,29 @@ export default async function MoviePage({ params }: PageProps) {
 
           <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
             <div className="max-w-3xl">
-              <h1 className="text-3xl leading-[1.05] font-bold text-bone sm:text-4xl lg:text-5xl">
+              <h1 className="text-2xl leading-tight font-bold text-bone sm:text-4xl lg:text-5xl">
                 {movie.title}
               </h1>
 
-              <MovieMeta movie={movie} className="mt-3" />
+              <MovieMeta movie={movie} className="mt-2 sm:mt-3" />
 
               {movie.tagline && (
-                <p className="mt-4 text-[0.95rem] leading-snug text-lamp/90 italic">
+                <p className="mt-2 text-xs leading-snug text-lamp/90 italic sm:mt-3 sm:text-[0.95rem]">
                   {movie.tagline}
                 </p>
               )}
 
-              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-5">
+              {movie.overview && (
+                <p className="mt-3 text-xs leading-relaxed text-bone-soft sm:mt-5 sm:text-sm sm:leading-relaxed">
+                  {movie.overview}
+                </p>
+              )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 sm:mt-6">
                 <AskAboutButton title={movie.title} />
+                <TrailerButton movieTitle={movie.title} youtubeKey={trailerKey} />
+                <ListButtons movieId={movie.id} variant="hero" />
+                <div className="h-6 w-px bg-ink-line hidden sm:block" />
                 <StarRating
                   movieId={movie.id}
                   rating={ratings.get(movie.id) ?? null}
@@ -114,114 +128,29 @@ export default async function MoviePage({ params }: PageProps) {
                   showValue
                 />
               </div>
-
-              <div className="mt-5">
-                <ListButtons movieId={movie.id} variant="inline" />
-              </div>
-
-              {movie.overview && (
-                <p className="mt-6 leading-relaxed text-bone-soft">{movie.overview}</p>
-              )}
             </div>
           </div>
         </section>
 
-        {/* Cast & Crew row streams independently via Suspense */}
-        <Suspense fallback={<CastSkeleton />}>
-          <MovieCastSection movieId={movie.id} />
-        </Suspense>
+        {cast.length > 0 && (
+          <div className="page-container pt-12 sm:pt-14">
+            <h2 className="mb-4 text-lg font-bold text-bone sm:text-xl">Cast</h2>
+            <CastRow items={cast} />
+          </div>
+        )}
 
-        {/* Vector recommendation shelf streams independently so Pinecone
-            lookups never delay the primary film details. */}
-        <Suspense fallback={<RelatedSkeleton />}>
-          <RelatedMoviesShelf movieId={movie.id} ratingsById={ratingsById} />
-        </Suspense>
+        {related.length > 0 && (
+          <div className="page-container pt-14 sm:pt-16">
+            <CarouselRow
+              title="More like this"
+              movies={related}
+              ratings={ratingsById}
+            />
+          </div>
+        )}
       </main>
     </AppShell>
   );
 }
 
-// ─── streaming components ─────────────────────────────────────────────────────
-
-async function MovieCastSection({ movieId }: { movieId: number }) {
-  const cast = await getMovieCast(movieId);
-  if (cast.length === 0) return null;
-
-  return (
-    <div className="page-container pt-12 sm:pt-14">
-      <h2 className="mb-4 text-lg font-bold text-bone sm:text-xl">Cast</h2>
-      <CastRow items={cast} />
-    </div>
-  );
-}
-
-function CastSkeleton() {
-  return (
-    <div className="page-container pt-12 sm:pt-14">
-      <div className="mb-4 skeleton h-5 w-24 rounded sm:h-6" />
-      <div className="no-scrollbar flex gap-3 overflow-hidden pt-1 pb-3">
-        {[...Array(12)].map((_, i) => (
-          <div
-            key={i}
-            className="flex w-24 shrink-0 flex-col items-center sm:w-28"
-          >
-            <div className="skeleton size-16 rounded-full sm:size-20" />
-            <div className="mt-2 skeleton h-3.5 w-16 rounded" />
-            <div className="mt-1 skeleton h-3 w-12 rounded" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-async function RelatedMoviesShelf({
-  movieId,
-  ratingsById,
-}: {
-  movieId: number;
-  ratingsById: Record<number, number>;
-}) {
-  const supabase = await createServerSupabase();
-  const related = await getRelatedMovies(supabase, movieId);
-
-  if (related.length === 0) return null;
-
-  return (
-    <div className="page-container pt-14 sm:pt-16">
-      <CarouselRow
-        title="More like this"
-        movies={related}
-        ratings={ratingsById}
-      />
-    </div>
-  );
-}
-
-function RelatedSkeleton() {
-  return (
-    <div className="page-container pt-14 sm:pt-16">
-      <section className="group/row">
-        <div className="mb-3 flex items-baseline gap-3">
-          <div className="skeleton h-5 w-36 rounded sm:h-6" />
-        </div>
-        <div className="flex gap-3 overflow-hidden pt-1 pb-4 sm:gap-4">
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className="w-[8rem] shrink-0 sm:w-[12.5rem] lg:w-[14rem]"
-            >
-              <div className="skeleton aspect-[2/3] w-full rounded-lg" />
-              <div className="mt-2 space-y-1 sm:mt-2.5">
-                <div className="skeleton h-3.5 w-3/4 rounded sm:h-4" />
-                <div className="skeleton h-3 w-1/2 rounded" />
-                <div className="mt-1.5 skeleton h-4 w-24 rounded sm:mt-2" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-}
 

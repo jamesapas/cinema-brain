@@ -666,3 +666,56 @@ const getCachedMovieCast = unstable_cache(
 export async function getMovieCast(movieId: number): Promise<MovieCastItem[]> {
   return getCachedMovieCast(movieId);
 }
+
+/**
+ * Fetch official YouTube trailer key from TMDB API for a given movie ID.
+ * Cached for 24 hours (86400s) using unstable_cache.
+ */
+const getCachedMovieTrailerKey = unstable_cache(
+  async (movieId: number): Promise<string | null> => {
+    const token = process.env.TMDB_ACCESS_TOKEN;
+    if (!token) return null;
+
+    try {
+      const res = await fetch(
+        `https://api.themoviedb.org/3/movie/${movieId}/videos?language=en-US`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            accept: "application/json",
+          },
+        },
+      );
+
+      if (!res.ok) return null;
+
+      const data = (await res.json()) as {
+        results?: Array<{
+          key: string;
+          site: string;
+          type: string;
+          official?: boolean;
+        }>;
+      };
+
+      const videos = data.results ?? [];
+      const trailer =
+        videos.find(
+          (v) => v.site === "YouTube" && v.type === "Trailer" && v.official,
+        ) ||
+        videos.find((v) => v.site === "YouTube" && v.type === "Trailer") ||
+        videos.find((v) => v.site === "YouTube" && v.type === "Teaser") ||
+        videos.find((v) => v.site === "YouTube");
+
+      return trailer?.key ?? null;
+    } catch {
+      return null;
+    }
+  },
+  ["catalog-movie-trailer"],
+  { revalidate: 86400, tags: ["catalog", "movie-trailer"] },
+);
+
+export async function getMovieTrailerKey(movieId: number): Promise<string | null> {
+  return getCachedMovieTrailerKey(movieId);
+}

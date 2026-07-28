@@ -178,25 +178,30 @@ function ListButton({
         // the poster corner flash a second, brighter shape at you; the glyph
         // filling in is the whole event, and the disc is only what keeps it
         // legible over the artwork underneath.
-        className={`grid cursor-pointer place-items-center rounded-full bg-ink/65 backdrop-blur-sm transition-colors hover:bg-ink/85 ${
-          hero ? "size-10" : "size-7 sm:size-8"
-        } ${on ? ui.on : "text-bone hover:text-lamp"}`}
+        className={`grid cursor-pointer place-items-center ${
+          hero
+            ? "btn btn-quiet !px-0 size-10"
+            : `rounded-full bg-ink/65 backdrop-blur-sm transition-colors hover:bg-ink/85 size-7 sm:size-8 ${
+                on ? ui.on : "text-bone hover:text-lamp"
+              }`
+        }`}
       >
         <Icon
-          icon={icon}
+          icon={hero ? (on ? (list === "watchlist" ? "ri:bookmark-fill" : "ri:heart-3-fill") : (list === "watchlist" ? "ri:bookmark-line" : "ri:heart-3-line")) : icon}
           width={hero ? 19 : 15}
           height={hero ? 19 : 15}
           aria-hidden
-          // Filled when set, outline when not: at this size the fill reads
-          // before the shape does.
-          //
-          // pointer-events-none is load-bearing, not tidiness. Iconify swaps
-          // the glyph for a new <svg> whenever this component re-renders, and
-          // the hero re-renders on pointerdown to pause its carousel — so the
-          // node the press landed on was gone by the time the button came back
-          // up, and the browser fired no click at all. With the glyph inert,
-          // the press and release both land on the button, which survives.
-          className={`pointer-events-none ${on ? "[&_*]:fill-current" : ""}`}
+          className={`pointer-events-none ${
+            hero
+              ? on
+                ? list === "watchlist"
+                  ? "text-lamp"
+                  : "text-ember"
+                : "text-bone group-hover/btn:text-lamp transition-colors"
+              : on
+                ? "[&_*]:fill-current"
+                : ""
+          }`}
         />
       </button>
     );

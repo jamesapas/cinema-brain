@@ -185,40 +185,30 @@ export function Hero({
       <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
         {/* Keyed on the film, so the copy fades in with the backdrop instead of
             the old title sitting over the new image for a beat. */}
-        <div key={movie.id} className="result-in max-w-xl">
-          <h1 className="mt-2 text-4xl leading-[1.02] font-bold text-bone sm:text-5xl lg:text-6xl">
+        <div key={movie.id} className="result-in max-w-3xl">
+          <h1 className="mt-2 text-2xl leading-tight font-bold text-bone sm:text-4xl lg:text-5xl">
             {movie.title}
           </h1>
 
-          <MovieMeta movie={movie} className="mt-3 !text-sm" />
+          <MovieMeta movie={movie} className="mt-2 sm:mt-3 !text-xs sm:!text-sm" />
 
-          {text && <p className="mt-4 max-w-lg leading-relaxed text-bone-soft">{text}</p>}
+          {text && (
+            <p className="mt-2.5 text-xs leading-relaxed text-bone-soft sm:mt-4 sm:text-sm sm:leading-relaxed">
+              {text}
+            </p>
+          )}
 
-          {/* Stars sit in the same row as the actions, at the same size they
-              are on a poster — rating the featured film is the same gesture as
-              rating anything in a shelf, so it shouldn't look like a different
-              control. The group carries its own accessible name, so it needs
-              no visible "Your rating" heading. */}
-          <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-5">
-            {/*
-              inline-grid with two equal fractions: the pair sizes to whichever
-              label is longer and both then match it, so "Ask Kino" and "More
-              info" read as one control group rather than two buttons that
-              happen to sit together.
-            */}
-            <div className="inline-grid grid-cols-2 gap-3 [&>a]:w-full [&>button]:w-full">
-              <AskAboutButton title={movie.title} />
-              <MoreInfoLink movieId={movie.id} />
-            </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 sm:mt-6">
+            <AskAboutButton title={movie.title} />
+            <MoreInfoLink movieId={movie.id} />
+            <ListButtons movieId={movie.id} variant="hero" />
+            <div className="h-6 w-px bg-ink-line hidden sm:block" />
             <StarRating
               movieId={movie.id}
               rating={ratings[movie.id] ?? null}
-              size="lg"
+              size="xl"
+              showValue
             />
-            {/* Icons only, unlike the film page's labelled pair: this row
-                already carries two labelled buttons, and a third and fourth
-                would have pushed the stars onto their own line. */}
-            <ListButtons movieId={movie.id} variant="hero" />
           </div>
         </div>
 
@@ -231,8 +221,6 @@ export function Hero({
                 onClick={() => setIndex(slideIndex)}
                 aria-label={`Show ${slide.title}`}
                 aria-current={slideIndex === index}
-                // A line rather than a dot: it reads as position along a strip,
-                // and gives a target big enough to actually hit.
                 className={`h-1 rounded-full transition-all duration-300 ${
                   slideIndex === index
                     ? "w-8 bg-bone"

@@ -41,7 +41,7 @@ export function CastRow({ items }: { items: MovieCastItem[] }) {
     <div className="group/row relative">
       <div
         ref={trackRef}
-        className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth touch-pan-x pb-3"
+        className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth touch-pan-x pb-3"
       >
         {items.map((person) => {
           const avatar = profileUrl(person.profile_path, "w185");

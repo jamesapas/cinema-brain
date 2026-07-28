@@ -198,13 +198,3 @@ function ShelfSkeleton() {
     </section>
   );
 }
-
-/** Two shelf placeholders: Top Picks + Genre shelf */
-function PersonalisedShelfSkeleton() {
-  return (
-    <>
-      <ShelfSkeleton />
-      <ShelfSkeleton />
-    </>
-  );
-}

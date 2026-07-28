@@ -10,23 +10,26 @@ export default function Loading() {
       {/* Hero placeholder — exact same height and layout as real Hero */}
       <section className="relative min-h-[62vh] w-full bg-gradient-to-t from-ink to-ink-raised sm:min-h-[70vh]">
         <div className="page-container relative flex min-h-[62vh] flex-col justify-end pt-24 pb-12 sm:min-h-[70vh] lg:pb-16">
-          <div className="max-w-xl">
+          <div className="max-w-3xl">
             {/* Title */}
             <div className="mt-2 skeleton h-10 w-72 max-w-full rounded sm:h-12 lg:h-14" />
             {/* Meta */}
             <div className="mt-3 skeleton h-4 w-40 rounded" />
             {/* Blurb */}
-            <div className="mt-4 space-y-2 max-w-lg">
+            <div className="mt-4 space-y-2 max-w-2xl">
               <div className="skeleton h-3.5 w-full rounded" />
               <div className="skeleton h-3.5 w-4/5 rounded" />
             </div>
-            {/* Actions + Star Rating */}
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-5">
-              <div className="inline-grid grid-cols-2 gap-3">
-                <div className="skeleton h-10 w-28 rounded-md" />
-                <div className="skeleton h-10 w-28 rounded-md" />
+            {/* Action bar skeleton */}
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+              <div className="skeleton h-10 w-[7.5rem] rounded-md" />
+              <div className="skeleton h-10 w-[6.5rem] rounded-md" />
+              <div className="flex items-center gap-2">
+                <div className="skeleton size-10 rounded-md" />
+                <div className="skeleton size-10 rounded-md" />
               </div>
-              <div className="skeleton h-6 w-32 rounded" />
+              <div className="hidden h-6 w-px bg-ink-line/60 sm:block" />
+              <div className="skeleton h-8 w-44 rounded-md" />
             </div>
           </div>
 
