@@ -42,7 +42,7 @@ export default function Loading() {
             <div className="mt-4 skeleton h-4 w-60 max-w-full rounded" />
 
             {/* Ask Kino button + XL Star Rating */}
-            <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-5">
+            <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-5">
               <div className="skeleton h-10 w-28 rounded-md" />
               <div className="skeleton h-8 w-44 rounded" />
             </div>

@@ -455,17 +455,20 @@ button:disabled {
  * own corner the way the thing it replaces does.
  */
 .skeleton {
-  background-color: var(--color-ink-line);
-  animation: skeleton-breathe 2s ease-in-out infinite;
+  background-color: #1a232c;
+  background-color: var(--color-ink-line, #1a232c);
+  animation: skeleton-breathe 1.8s ease-in-out infinite;
 }
 
 @keyframes skeleton-breathe {
   0%,
   100% {
-    background-color: var(--color-ink-line);
+    background-color: #1a232c;
+    background-color: var(--color-ink-line, #1a232c);
   }
   50% {
-    background-color: color-mix(in oklab, var(--color-bone) 7%, var(--color-ink-line));
+    background-color: #2a3644;
+    background-color: color-mix(in srgb, var(--color-bone, #f4f0e8) 12%, var(--color-ink-line, #1a232c));
   }
 }
 
@@ -474,6 +477,8 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
+    background-color: #1a232c;
+    background-color: var(--color-ink-line, #1a232c);
   }
 }
 
