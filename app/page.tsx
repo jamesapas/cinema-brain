@@ -4,10 +4,11 @@ import { Hero } from "@/app/components/hero";
 import { getViewer } from "@/lib/auth/viewer";
 import {
   getByGenre,
-  getRatingsByMovie,
+  getRatedMovies,
   getTopPicksForYou,
   getTopRated,
   getTrending,
+  type RatedMovie,
   type TopPicksForYou,
 } from "@/lib/movies/catalog";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -50,19 +51,15 @@ export default async function Home() {
   // Signed out there is no taste to read: no stars set, and nothing to seed the
   // personalized row from. Skipped rather than queried — RLS would return an
   // empty set anyway, and asking for it says something that isn't true.
-  const [ratings, topPicks]: [Map<number, number>, TopPicksForYou | null] = viewer
+  const [ratedMovies, topPicks]: [RatedMovie[], TopPicksForYou | null] = viewer
     ? await Promise.all([
-        getRatingsByMovie(supabase, viewer.id),
+        getRatedMovies(supabase, viewer.id),
         getTopPicksForYou(supabase, viewer.id, 20),
       ])
-    : [new Map(), null];
+    : [[], null];
 
-  // Genres for the rated films, to pick a shelf that matches their taste.
-  const ratedIds = [...ratings.keys()];
-  const { data: ratedRows } = ratedIds.length
-    ? await supabase.from("movies").select("id, genres").in("id", ratedIds)
-    : { data: [] };
-  const genresByMovie = new Map((ratedRows ?? []).map((row) => [row.id, row.genres]));
+  const ratings = new Map(ratedMovies.map((r) => [r.movie.id, r.rating]));
+  const genresByMovie = new Map(ratedMovies.map((r) => [r.movie.id, r.movie.genres]));
 
   // The fallback is also what every signed-out visitor sees, which is why it's
   // a shelf that stands on its own rather than a stand-in for a missing one.

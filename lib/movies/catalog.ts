@@ -1,3 +1,5 @@
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
@@ -8,6 +10,7 @@ import {
   searchByTasteVector,
 } from "@/lib/movies/search";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Presentation helpers live in images.ts so client components can use them
 // without pulling this module's server-only dependencies. Re-exported here for
@@ -43,49 +46,76 @@ function unwrap(
   return withPoster(result.data ?? []);
 }
 
+const getCachedTrending = unstable_cache(
+  async (limit: number) => {
+    const admin = createAdminClient();
+    return unwrap(
+      await admin
+        .from("movies")
+        .select(CARD_SELECT)
+        .order("popularity", { ascending: false, nullsFirst: false })
+        .limit(limit),
+      "Trending",
+    );
+  },
+  ["catalog-trending"],
+  { revalidate: 900, tags: ["catalog", "trending"] },
+);
+
 export async function getTrending(
-  supabase: SupabaseClient<Database>,
+  _supabase: SupabaseClient<Database>,
   limit = 20,
 ): Promise<MovieCard[]> {
-  return unwrap(
-    await supabase
-      .from("movies")
-      .select(CARD_SELECT)
-      .order("popularity", { ascending: false, nullsFirst: false })
-      .limit(limit),
-    "Trending",
-  );
+  return getCachedTrending(limit);
 }
+
+const getCachedTopRated = unstable_cache(
+  async (limit: number, minVotes: number) => {
+    const admin = createAdminClient();
+    return unwrap(
+      await admin
+        .from("movies")
+        .select(CARD_SELECT)
+        .gte("vote_count", minVotes)
+        .order("vote_average", { ascending: false, nullsFirst: false })
+        .limit(limit),
+      "Top rated",
+    );
+  },
+  ["catalog-top-rated"],
+  { revalidate: 3600, tags: ["catalog", "top-rated"] },
+);
 
 export async function getTopRated(
-  supabase: SupabaseClient<Database>,
+  _supabase: SupabaseClient<Database>,
   { limit = 20, minVotes = 500 }: { limit?: number; minVotes?: number } = {},
 ): Promise<MovieCard[]> {
-  return unwrap(
-    await supabase
-      .from("movies")
-      .select(CARD_SELECT)
-      .gte("vote_count", minVotes)
-      .order("vote_average", { ascending: false, nullsFirst: false })
-      .limit(limit),
-    "Top rated",
-  );
+  return getCachedTopRated(limit, minVotes);
 }
 
+const getCachedByGenre = unstable_cache(
+  async (genre: string, limit: number) => {
+    const admin = createAdminClient();
+    return unwrap(
+      await admin
+        .from("movies")
+        .select(CARD_SELECT)
+        .overlaps("genres", [genre])
+        .order("popularity", { ascending: false, nullsFirst: false })
+        .limit(limit),
+      `Genre ${genre}`,
+    );
+  },
+  ["catalog-by-genre"],
+  { revalidate: 1800, tags: ["catalog", "by-genre"] },
+);
+
 export async function getByGenre(
-  supabase: SupabaseClient<Database>,
+  _supabase: SupabaseClient<Database>,
   genre: string,
   limit = 20,
 ): Promise<MovieCard[]> {
-  return unwrap(
-    await supabase
-      .from("movies")
-      .select(CARD_SELECT)
-      .overlaps("genres", [genre])
-      .order("popularity", { ascending: false, nullsFirst: false })
-      .limit(limit),
-    `Genre ${genre}`,
-  );
+  return getCachedByGenre(genre, limit);
 }
 
 export async function hydrateCards(
@@ -101,18 +131,27 @@ export async function hydrateCards(
 }
 
 /** One film, for its own page. Null when the id isn't in the catalog. */
+const getCachedMovieById = unstable_cache(
+  async (id: number) => {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("movies")
+      .select(CARD_SELECT)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) throw new Error(`Movie ${id} lookup failed: ${error.message}`);
+    return data;
+  },
+  ["catalog-movie-by-id"],
+  { revalidate: 3600, tags: ["catalog", "movie-by-id"] },
+);
+
 export async function getMovieById(
-  supabase: SupabaseClient<Database>,
+  _supabase: SupabaseClient<Database>,
   id: number,
 ): Promise<MovieCard | null> {
-  const { data, error } = await supabase
-    .from("movies")
-    .select(CARD_SELECT)
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error) throw new Error(`Movie ${id} lookup failed: ${error.message}`);
-  return data;
+  return getCachedMovieById(id);
 }
 
 /**
@@ -141,46 +180,55 @@ const RELATED_MIN_RESULTS = 6;
  * survive for a mainstream film. An obscure one keeps almost nothing, so the
  * floor drops away entirely rather than returning a shelf of three.
  */
+const getCachedRelatedMovies = unstable_cache(
+  async (movieId: number, limit: number) => {
+    const scores = await findSimilarMovieIds(movieId, 100);
+    if (scores.size === 0) return [];
+
+    const ids = [...scores.keys()];
+    const admin = createAdminClient();
+
+    let rows = unwrap(
+      await admin
+        .from("movies")
+        .select(CARD_SELECT)
+        .in("id", ids)
+        .gte("vote_count", RELATED_MIN_VOTES),
+      "Related films",
+    );
+
+    if (rows.length < RELATED_MIN_RESULTS) {
+      // Second Postgres query, no second Pinecone read — the candidates are
+      // already in hand.
+      rows = unwrap(
+        await admin.from("movies").select(CARD_SELECT).in("id", ids),
+        "Related films",
+      );
+    }
+
+    // Postgres returns `in()` rows in arbitrary order; similarity is the whole
+    // point of the list, so impose it here.
+    return rows
+      .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
+      .slice(0, limit);
+  },
+  ["catalog-related-movies"],
+  { revalidate: 3600, tags: ["catalog", "related-movies"] },
+);
+
 export async function getRelatedMovies(
-  supabase: SupabaseClient<Database>,
+  _supabase: SupabaseClient<Database>,
   movieId: number,
   limit = 20,
 ): Promise<MovieCard[]> {
-  const scores = await findSimilarMovieIds(movieId, 100);
-  if (scores.size === 0) return [];
-
-  const ids = [...scores.keys()];
-
-  let rows = unwrap(
-    await supabase
-      .from("movies")
-      .select(CARD_SELECT)
-      .in("id", ids)
-      .gte("vote_count", RELATED_MIN_VOTES),
-    "Related films",
-  );
-
-  if (rows.length < RELATED_MIN_RESULTS) {
-    // Second Postgres query, no second Pinecone read — the candidates are
-    // already in hand.
-    rows = unwrap(
-      await supabase.from("movies").select(CARD_SELECT).in("id", ids),
-      "Related films",
-    );
-  }
-
-  // Postgres returns `in()` rows in arbitrary order; similarity is the whole
-  // point of the list, so impose it here.
-  return rows
-    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
-    .slice(0, limit);
+  return getCachedRelatedMovies(movieId, limit);
 }
 
 /** The user's ratings keyed by movie, so cards can show current star state. */
-export async function getRatingsByMovie(
+export const getRatingsByMovie = cache(async (
   supabase: SupabaseClient<Database>,
   userId?: string,
-): Promise<Map<number, number>> {
+): Promise<Map<number, number>> => {
   const targetUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
   if (!targetUserId) return new Map();
 
@@ -196,7 +244,7 @@ export async function getRatingsByMovie(
     if (row.rating !== null) entries.push([row.movie_id, row.rating]);
   }
   return new Map(entries);
-}
+});
 
 /**
  * `%` and `_` are wildcards in LIKE, so a query containing them would quietly

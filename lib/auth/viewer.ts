@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/database.types";
@@ -28,11 +29,12 @@ export type Viewer = {
 
 /**
  * `getUser` rather than `getSession`: this is what validates the token with
- * Supabase, and it is what everything downstream trusts.
+ * Supabase, and it is what everything downstream trusts. Wrapped in React `cache`
+ * to deduplicate user identity checks within a single request context.
  */
-export async function getViewer(
+export const getViewer = cache(async (
   supabase: SupabaseClient<Database>,
-): Promise<Viewer | null> {
+): Promise<Viewer | null> => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -51,4 +53,4 @@ export async function getViewer(
     avatarUrl: avatarUrl(profile?.avatar_path),
     initials: initialsFor(profile?.display_name ?? null, email),
   };
-}
+});
