@@ -25,12 +25,18 @@ export default async function SearchPage({
 
   // Finding a film is browsing, so it needs no account. The stars on the
   // results do, and there are none to fetch without one.
-  const [viewer, results] = await Promise.all([
+  //
+  // `getRatingsByMovie` runs in the same Promise.all rather than a second
+  // sequential await: on the signed-in path it used to add a full extra round
+  // trip. For a signed-out visitor the result is discarded — the query is cheap
+  // and the latency saving on authenticated requests is worth it.
+  const [viewer, results, ratingsRaw] = await Promise.all([
     getViewer(supabase),
     searchMoviesByTitle(supabase, query, RESULT_LIMIT),
+    getRatingsByMovie(supabase),
   ]);
 
-  const ratings = viewer ? await getRatingsByMovie(supabase) : new Map<number, number>();
+  const ratings = viewer ? ratingsRaw : new Map<number, number>();
   const ratingsById = Object.fromEntries(ratings);
   const tooShort = query.length > 0 && query.length < MIN_SEARCH_LENGTH;
 
