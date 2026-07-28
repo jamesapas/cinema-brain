@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
-import { KinoAvatar } from "@/app/components/kino-avatar";
+import { KinoLogo } from "@/app/components/kino-logo";
 import { useSearchOverlay } from "@/app/components/search-overlay";
 import { useSignIn } from "@/app/components/session";
 
@@ -48,11 +48,10 @@ export function SiteHeader({
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-30 transition-colors duration-300 ${
-        scrolled
+      className={`fixed inset-x-0 top-0 z-30 transition-colors duration-300 ${scrolled
           ? "bg-ink/95 backdrop-blur-md"
           : "bg-gradient-to-b from-ink via-ink/60 to-transparent"
-      }`}
+        }`}
     >
       {/* The bar spans the viewport so its fill covers everything passing
           behind it; its contents stay in the page container. */}
@@ -60,13 +59,7 @@ export function SiteHeader({
         {/* Face and name as one lockup: the brand and the thing you talk to
             are the same character, so the mark that opens the site is the same
             mark that answers you in the panel. */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 rounded text-2xl font-bold tracking-tight text-bone"
-        >
-          <KinoAvatar size={40} />
-          <span className="mt-1">Kino</span>
-        </Link>
+        <KinoLogo />
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5">

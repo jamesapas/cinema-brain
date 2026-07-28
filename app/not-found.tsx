@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { KinoAvatar } from "@/app/components/kino-avatar";
+import { KinoLogo } from "@/app/components/kino-logo";
 
 export const metadata: Metadata = {
   title: "Not found",
@@ -24,13 +24,7 @@ export default function NotFound() {
   return (
     <main className="cinema-backdrop film-grain relative flex flex-1 flex-col">
       <div className="page-container flex flex-1 flex-col">
-        <Link
-          href="/"
-          className="mt-6 flex w-fit items-center gap-2 rounded text-2xl font-bold tracking-tight text-bone transition-colors hover:text-lamp"
-        >
-          <KinoAvatar size={40} />
-          <span className="mt-1">Kino</span>
-        </Link>
+        <KinoLogo className="mt-6 w-fit" />
 
         <div className="flex flex-1 flex-col items-center justify-center gap-8 pb-24 text-center">
           <Filmstrip />

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { KinoAvatar } from "@/app/components/kino-avatar";
+import { KinoLogo } from "@/app/components/kino-logo";
 
 import { ResetGate } from "./reset-gate";
 
@@ -42,13 +41,7 @@ export default async function ResetPasswordPage({
             nudge under the wordmark — so arriving here from an inbox still
             reads as this site. Only the hover is added: here it is the one way
             back, where in the bar it sits beside a Home button. */}
-        <Link
-          href="/"
-          className="mt-6 flex w-fit items-center gap-2 rounded text-2xl font-bold tracking-tight text-bone transition-colors hover:text-lamp"
-        >
-          <KinoAvatar size={40} />
-          <span className="mt-1">Kino</span>
-        </Link>
+        <KinoLogo className="mt-6 w-fit" />
 
         <div className="flex flex-1 items-center justify-center px-4 pb-24">
           <div className="overlay-card sheet-in w-full max-w-[27rem] px-5 py-6 sm:px-7">
