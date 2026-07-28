@@ -421,12 +421,136 @@ function deriveTasteSummary(ratedItems: { rating: number; genres: string[] }[]):
   }
 }
 
+const getCachedTopPicks = unstable_cache(
+  async (userId: string, limit: number) => {
+    const admin = createAdminClient();
+
+    const { data: userRatings, error } = await admin
+      .from("user_movie_ratings")
+      .select("movie_id, rating, movies(title, genres)")
+      .eq("user_id", userId)
+      .not("rating", "is", null);
+
+    if (error || !userRatings || userRatings.length === 0) return null;
+
+    const ratedItems = userRatings
+      .filter((r): r is typeof r & { movies: { title: string; genres: string[] } } =>
+        Boolean(r.movies && r.rating !== null),
+      )
+      .map((r) => ({
+        movieId: r.movie_id,
+        rating: r.rating!,
+        title: r.movies.title,
+        genres: r.movies.genres,
+      }));
+
+    if (ratedItems.length === 0) return null;
+
+    const ratedMovieIds = new Set(ratedItems.map((item) => item.movieId));
+    const tasteSummary = deriveTasteSummary(ratedItems);
+
+    // Single rating fallback: if only 1 rating, use nearest vector neighbors of that movie
+    if (ratedItems.length === 1) {
+      const seedMovie = ratedItems[0];
+      const related = await getRelatedMovies(admin, seedMovie.movieId, limit + 5);
+      const filtered = related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit);
+      return {
+        movies: filtered,
+        tasteSummary: `Based on your rating for ${seedMovie.title}`,
+      };
+    }
+
+    // Cap vector fetch to top 15 most influential ratings (highest rated + newest)
+    // to prevent fetching dozens of 1536-dim vectors unnecessarily from Pinecone
+    const topRatedItems = [...ratedItems]
+      .sort((a, b) => b.rating - a.rating)
+      .slice(0, 15);
+
+    const vectorMap = await fetchMovieVectors(topRatedItems.map((item) => item.movieId));
+
+    let dim = 1536;
+    const compositeVector = new Float64Array(dim);
+    let totalWeight = 0;
+
+    for (const item of topRatedItems) {
+      const vec = vectorMap.get(item.movieId);
+      if (!vec || vec.length === 0) continue;
+      dim = vec.length;
+      const weight = ratingToWeight(item.rating);
+      if (weight === 0) continue;
+
+      totalWeight += Math.abs(weight);
+      for (let i = 0; i < dim; i++) {
+        compositeVector[i] += vec[i] * weight;
+      }
+    }
+
+    // If no weights accumulated or vectors missing, fallback to highest rated movie's neighbors
+    if (totalWeight === 0) {
+      const topRatedItem = [...ratedItems].sort((a, b) => b.rating - a.rating)[0];
+      const related = await getRelatedMovies(admin, topRatedItem.movieId, limit + 5);
+      return {
+        movies: related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit),
+        tasteSummary,
+      };
+    }
+
+    // L2 Normalize composite vector to unit vector for Cosine similarity
+    let magnitudeSq = 0;
+    for (let i = 0; i < dim; i++) {
+      magnitudeSq += compositeVector[i] * compositeVector[i];
+    }
+    const magnitude = Math.sqrt(magnitudeSq);
+
+    if (magnitude === 0) return null;
+
+    const normalizedVector: number[] = new Array(dim);
+    for (let i = 0; i < dim; i++) {
+      normalizedVector[i] = compositeVector[i] / magnitude;
+    }
+
+    // Over-fetch vector candidates from Pinecone (100 matches)
+    const scores = await searchByTasteVector(normalizedVector, 100);
+    if (scores.size === 0) return null;
+
+    // Filter out already rated movies
+    const candidateIds = [...scores.keys()].filter((id) => !ratedMovieIds.has(id));
+    if (candidateIds.length === 0) return null;
+
+    // Apply vote count floor (same as getRelatedMovies)
+    let rows = unwrap(
+      await admin
+        .from("movies")
+        .select(CARD_SELECT)
+        .in("id", candidateIds)
+        .gte("vote_count", RELATED_MIN_VOTES),
+      "Top picks",
+    );
+
+    if (rows.length < RELATED_MIN_RESULTS) {
+      rows = unwrap(
+        await admin.from("movies").select(CARD_SELECT).in("id", candidateIds),
+        "Top picks",
+      );
+    }
+
+    // Sort by Pinecone similarity score descending
+    const ordered = rows
+      .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
+      .slice(0, limit);
+
+    return {
+      movies: ordered,
+      tasteSummary,
+    };
+  },
+  ["user-top-picks-v1"],
+  { revalidate: 900, tags: ["top-picks"] },
+);
+
 /**
  * "Top Picks for You" — recommendations derived from the user's composite vector taste profile.
- *
- * Instead of anchoring to a single movie, we fetch stored 1536-dim vectors for all films
- * rated by the user (using Pinecone fetch, costing 0 OpenAI API calls), compute a weighted
- * normalized taste vector, and query Pinecone for closest matches across the catalog.
+ * Cached per user via unstable_cache for 15 minutes.
  */
 export async function getTopPicksForYou(
   supabase: SupabaseClient<Database>,
@@ -436,120 +560,7 @@ export async function getTopPicksForYou(
   const targetUserId = userId ?? (await supabase.auth.getUser()).data.user?.id;
   if (!targetUserId) return null;
 
-  const { data: userRatings, error } = await supabase
-    .from("user_movie_ratings")
-    .select("movie_id, rating, movies(title, genres)")
-    .eq("user_id", targetUserId)
-    .not("rating", "is", null);
-
-  if (error) throw new Error(`Failed to read user ratings for taste profile: ${error.message}`);
-  if (!userRatings || userRatings.length === 0) return null;
-
-  const ratedItems = userRatings
-    .filter((r): r is typeof r & { movies: { title: string; genres: string[] } } =>
-      Boolean(r.movies && r.rating !== null),
-    )
-    .map((r) => ({
-      movieId: r.movie_id,
-      rating: r.rating!,
-      title: r.movies.title,
-      genres: r.movies.genres,
-    }));
-
-  if (ratedItems.length === 0) return null;
-
-  const ratedMovieIds = new Set(ratedItems.map((item) => item.movieId));
-  const tasteSummary = deriveTasteSummary(ratedItems);
-
-  // Single rating fallback: if only 1 rating, use nearest vector neighbors of that movie
-  if (ratedItems.length === 1) {
-    const seedMovie = ratedItems[0];
-    const related = await getRelatedMovies(supabase, seedMovie.movieId, limit + 5);
-    const filtered = related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit);
-    return {
-      movies: filtered,
-      tasteSummary: `Based on your rating for ${seedMovie.title}`,
-    };
-  }
-
-  // Multi-rating: Fetch stored embedding vectors from Pinecone (0 OpenAI calls)
-  const vectorMap = await fetchMovieVectors(ratedItems.map((item) => item.movieId));
-
-  let dim = 1536;
-  const compositeVector = new Float64Array(dim);
-  let totalWeight = 0;
-
-  for (const item of ratedItems) {
-    const vec = vectorMap.get(item.movieId);
-    if (!vec || vec.length === 0) continue;
-    dim = vec.length;
-    const weight = ratingToWeight(item.rating);
-    if (weight === 0) continue;
-
-    totalWeight += Math.abs(weight);
-    for (let i = 0; i < dim; i++) {
-      compositeVector[i] += vec[i] * weight;
-    }
-  }
-
-  // If no weights accumulated or vectors missing, fallback to highest rated movie's neighbors
-  if (totalWeight === 0) {
-    const topRatedItem = [...ratedItems].sort((a, b) => b.rating - a.rating)[0];
-    const related = await getRelatedMovies(supabase, topRatedItem.movieId, limit + 5);
-    return {
-      movies: related.filter((m) => !ratedMovieIds.has(m.id)).slice(0, limit),
-      tasteSummary,
-    };
-  }
-
-  // L2 Normalize composite vector to unit vector for Cosine similarity
-  let magnitudeSq = 0;
-  for (let i = 0; i < dim; i++) {
-    magnitudeSq += compositeVector[i] * compositeVector[i];
-  }
-  const magnitude = Math.sqrt(magnitudeSq);
-
-  if (magnitude === 0) return null;
-
-  const normalizedVector: number[] = new Array(dim);
-  for (let i = 0; i < dim; i++) {
-    normalizedVector[i] = compositeVector[i] / magnitude;
-  }
-
-  // Over-fetch vector candidates from Pinecone (100 matches)
-  const scores = await searchByTasteVector(normalizedVector, 100);
-  if (scores.size === 0) return null;
-
-  // Filter out already rated movies
-  const candidateIds = [...scores.keys()].filter((id) => !ratedMovieIds.has(id));
-  if (candidateIds.length === 0) return null;
-
-  // Apply vote count floor (same as getRelatedMovies)
-  let rows = unwrap(
-    await supabase
-      .from("movies")
-      .select(CARD_SELECT)
-      .in("id", candidateIds)
-      .gte("vote_count", RELATED_MIN_VOTES),
-    "Top picks",
-  );
-
-  if (rows.length < RELATED_MIN_RESULTS) {
-    rows = unwrap(
-      await supabase.from("movies").select(CARD_SELECT).in("id", candidateIds),
-      "Top picks",
-    );
-  }
-
-  // Sort by Pinecone similarity score descending
-  const ordered = rows
-    .sort((a, b) => (scores.get(b.id) ?? 0) - (scores.get(a.id) ?? 0))
-    .slice(0, limit);
-
-  return {
-    movies: ordered,
-    tasteSummary,
-  };
+  return getCachedTopPicks(targetUserId, limit);
 }
 
 export type BecauseYouRated = {

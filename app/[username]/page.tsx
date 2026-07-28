@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
@@ -65,11 +66,14 @@ export default async function UsernamePage({ params }: PageProps) {
     notFound();
   }
 
-  const [rated, counts, viewerFollows, entries] = await Promise.all([
+  // `getUserEntries` runs three sequential async rounds (fetch → hydrate →
+  // attribute reposters) and is the slowest part of the page. It is fetched
+  // inside `ProfilePosts` behind a Suspense boundary so the sidebar, rating
+  // spread, and film grid can appear as soon as this faster trio resolves.
+  const [rated, counts, viewerFollows] = await Promise.all([
     getRatedMovies(supabase, profile.id),
     getFollowCounts(supabase, profile.id),
     viewer && !isOwner ? isFollowing(supabase, viewer.id, profile.id) : Promise.resolve(false),
-    getUserEntries(supabase, profile.id, viewer?.id ?? null),
   ]);
 
   const name = isOwner ? viewer!.displayName : displayNameFor(profile.display_name, profile.username);
@@ -208,15 +212,17 @@ export default async function UsernamePage({ params }: PageProps) {
             </div>
           )}
 
-          {/* Its own block rather than part of the ratings branch below: a
-              profile with nothing scored can still be full of posts, and the
-              two halves of a person here don't depend on each other. */}
-          <PostsSection
-            entries={entries}
-            isOwner={isOwner}
-            name={name}
-            viewerId={viewer?.id ?? null}
-          />
+          {/* Posts stream independently: `getUserEntries` is the slowest
+              section (multi-step fetch + hydration). Everything above this
+              line is already visible while the posts boundary is resolving. */}
+          <Suspense fallback={<PostsSkeleton isOwner={isOwner} />}>
+            <ProfilePosts
+              profileId={profile.id}
+              viewerId={viewer?.id ?? null}
+              isOwner={isOwner}
+              name={name}
+            />
+          </Suspense>
 
           {stats.count === 0 ? (
             <EmptyState isOwner={isOwner} />
@@ -424,6 +430,66 @@ function EmptyState({ isOwner }: { isOwner: boolean }) {
           Browse the catalog
         </Link>
       )}
+    </section>
+  );
+}
+
+// ─── streaming components ─────────────────────────────────────────────────────
+
+/**
+ * Posts section, streamed independently from the rest of the profile.
+ *
+ * `getUserEntries` makes three sequential async round-trips: (1) posts +
+ * reposts in parallel, (2) author profiles + viewer like/repost state in
+ * parallel, (3) reposter profiles. Extracting it here means the rating spread,
+ * film grid, and sidebar are all visible while this boundary resolves.
+ */
+async function ProfilePosts({
+  profileId,
+  viewerId,
+  isOwner,
+  name,
+}: {
+  profileId: string;
+  viewerId: string | null;
+  isOwner: boolean;
+  name: string;
+}) {
+  const supabase = await createServerSupabase();
+  const entries = await getUserEntries(supabase, profileId, viewerId);
+  return (
+    <PostsSection
+      entries={entries}
+      isOwner={isOwner}
+      name={name}
+      viewerId={viewerId}
+    />
+  );
+}
+
+function PostsSkeleton({ isOwner }: { isOwner: boolean }) {
+  return (
+    <section>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+        <div className="skeleton h-6 w-28 rounded" />
+      </div>
+      <div className="mt-3 max-w-2xl space-y-4">
+        {[...Array(isOwner ? 3 : 2)].map((_, i) => (
+          <div key={i} className="rounded-xl border border-ink-line p-5">
+            <div className="flex items-center gap-3">
+              <div className="skeleton size-9 shrink-0 rounded-full" />
+              <div className="space-y-1.5">
+                <div className="skeleton h-3.5 w-28 rounded" />
+                <div className="skeleton h-3 w-20 rounded" />
+              </div>
+            </div>
+            <div className="mt-4 space-y-2">
+              <div className="skeleton h-3 w-full rounded" />
+              <div className="skeleton h-3 w-3/4 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
@@ -6,14 +7,15 @@ import { Hero } from "@/app/components/hero";
 import { getViewer } from "@/lib/auth/viewer";
 import {
   getByGenre,
+  getRatingsByMovie,
   getRatedMovies,
   getTopPicksForYou,
   getTopRated,
   getTrending,
-  type RatedMovie,
-  type TopPicksForYou,
 } from "@/lib/movies/catalog";
 import { createServerSupabase } from "@/lib/supabase/server";
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 /** The genre shelf follows the user's taste when there is any to follow. */
 function favouriteGenre(
@@ -55,38 +57,19 @@ export default async function Home({
 
   const supabase = await createServerSupabase();
 
-  // The catalog is the same for everyone, so it loads alongside the identity
-  // check rather than behind it. Only the personal rows wait on the answer.
-  const [viewer, trending, topRated] = await Promise.all([
+  // Trending and Top Rated are served from Next.js's `unstable_cache` and cost
+  // no network round trip. The light ratings query gives the hero and both
+  // shelves immediate star state without waiting for the Pinecone round-trip
+  // that personalisation requires.
+  const [viewer, trending, topRated, ratingsRaw] = await Promise.all([
     getViewer(supabase),
     getTrending(supabase, 20),
     getTopRated(supabase, { limit: 20 }),
+    getRatingsByMovie(supabase),
   ]);
 
-  // Signed out there is no taste to read: no stars set, and nothing to seed the
-  // personalized row from. Skipped rather than queried — RLS would return an
-  // empty set anyway, and asking for it says something that isn't true.
-  const [ratedMovies, topPicks]: [RatedMovie[], TopPicksForYou | null] = viewer
-    ? await Promise.all([
-        getRatedMovies(supabase, viewer.id),
-        getTopPicksForYou(supabase, viewer.id, 20),
-      ])
-    : [[], null];
-
-  const ratings = new Map(ratedMovies.map((r) => [r.movie.id, r.rating]));
-  const genresByMovie = new Map(ratedMovies.map((r) => [r.movie.id, r.movie.genres]));
-
-  // The fallback is also what every signed-out visitor sees, which is why it's
-  // a shelf that stands on its own rather than a stand-in for a missing one.
-  const genre = favouriteGenre(ratings, genresByMovie) ?? "Science Fiction";
-  const genreRow = await getByGenre(supabase, genre, 20);
-
-  // The featured slot rotates through what's trending, and keeps films you've
-  // already rated rather than skipping them — your score shows on the stars.
-  // Only films with a backdrop qualify; the hero is mostly its artwork.
   const heroMovies = trending.filter((movie) => movie.backdrop_path).slice(0, 6);
-
-  const ratingsById = Object.fromEntries(ratings);
+  const ratingsById = Object.fromEntries(ratingsRaw);
 
   return (
     <AppShell viewer={viewer}>
@@ -104,21 +87,18 @@ export default async function Home({
             heroMovies.length > 0 ? "pt-6" : "pt-28"
           }`}
         >
-          {topPicks && topPicks.movies.length > 0 && (
-            <CarouselRow
-              title="Top Picks for You"
-              note={topPicks.tasteSummary ?? undefined}
-              movies={topPicks.movies}
-              ratings={ratingsById}
-              priority
-            />
-          )}
+          {/* Top Picks for You streams right below the hero banner. Fast cached
+              reads show immediately; fresh lookups stream seamlessly. */}
+          <Suspense fallback={<ShelfSkeleton />}>
+            <TopPicksShelf viewerId={viewer?.id ?? null} />
+          </Suspense>
 
+          {/* Catalog shelves served from cache */}
           <CarouselRow
             title="Trending"
             movies={trending}
             ratings={ratingsById}
-            priority={!topPicks}
+            priority
           />
 
           <CarouselRow
@@ -128,9 +108,103 @@ export default async function Home({
             ratings={ratingsById}
           />
 
-          <CarouselRow title={genre} movies={genreRow} ratings={ratingsById} />
+          {/* Favourite genre shelf */}
+          <Suspense fallback={<ShelfSkeleton />}>
+            <GenreShelf viewerId={viewer?.id ?? null} />
+          </Suspense>
         </div>
       </main>
     </AppShell>
+  );
+}
+
+// ─── streaming components ─────────────────────────────────────────────────────
+
+/**
+ * "Top Picks for You" shelf — rendered as the top shelf right below the Hero.
+ * Cached per user with `unstable_cache` (revalidate: 900) for instant renders.
+ */
+async function TopPicksShelf({ viewerId }: { viewerId: string | null }) {
+  if (!viewerId) return null;
+
+  const supabase = await createServerSupabase();
+  const [ratedMovies, topPicks] = await Promise.all([
+    getRatedMovies(supabase, viewerId),
+    getTopPicksForYou(supabase, viewerId, 20),
+  ]);
+
+  if (!topPicks || topPicks.movies.length === 0) return null;
+
+  const ratings = new Map(ratedMovies.map((r) => [r.movie.id, r.rating]));
+  const ratingsById = Object.fromEntries(ratings);
+
+  return (
+    <CarouselRow
+      title="Top Picks for You"
+      note={topPicks.tasteSummary ?? undefined}
+      movies={topPicks.movies}
+      ratings={ratingsById}
+      priority
+    />
+  );
+}
+
+/**
+ * User's Favourite Genre shelf — rendered at the bottom of the home catalog.
+ */
+async function GenreShelf({ viewerId }: { viewerId: string | null }) {
+  const supabase = await createServerSupabase();
+
+  if (!viewerId) {
+    const genreRow = await getByGenre(supabase, "Science Fiction", 20);
+    return <CarouselRow title="Science Fiction" movies={genreRow} ratings={{}} />;
+  }
+
+  const ratedMovies = await getRatedMovies(supabase, viewerId);
+  const ratings = new Map(ratedMovies.map((r) => [r.movie.id, r.rating]));
+  const genresByMovie = new Map(ratedMovies.map((r) => [r.movie.id, r.movie.genres]));
+  const genre = favouriteGenre(ratings, genresByMovie) ?? "Science Fiction";
+  const genreRow = await getByGenre(supabase, genre, 20);
+  const ratingsById = Object.fromEntries(ratings);
+
+  return <CarouselRow title={genre} movies={genreRow} ratings={ratingsById} />;
+}
+
+// ─── skeletons ───────────────────────────────────────────────────────────────
+
+function ShelfSkeleton() {
+  return (
+    <section className="group/row">
+      <div className="mb-3 flex items-baseline gap-3">
+        <div className="skeleton h-5 w-36 rounded sm:h-6" />
+      </div>
+      <div className="flex gap-3 overflow-hidden pt-1 pb-4 sm:gap-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="w-[8rem] shrink-0 sm:w-[12.5rem] lg:w-[14rem]"
+          >
+            {/* Poster image aspect 2/3 */}
+            <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+            {/* Title & meta placeholders matching real PosterCard flow */}
+            <div className="mt-2 space-y-1 sm:mt-2.5">
+              <div className="skeleton h-3.5 w-3/4 rounded sm:h-4" />
+              <div className="skeleton h-3 w-1/2 rounded" />
+              <div className="mt-1.5 skeleton h-4 w-24 rounded sm:mt-2" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Two shelf placeholders: Top Picks + Genre shelf */
+function PersonalisedShelfSkeleton() {
+  return (
+    <>
+      <ShelfSkeleton />
+      <ShelfSkeleton />
+    </>
   );
 }

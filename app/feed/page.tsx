@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
@@ -38,18 +39,10 @@ export default async function FeedPage() {
   const supabase = await createServerSupabase();
   const viewer = await getViewer(supabase);
 
-  // Read once and passed to all three: the candidates query needs it to find
-  // reposts worth surfacing, the ranker needs it to weight authors, and the
-  // rail needs it to avoid suggesting people already followed.
+  // Read once and passed to both streaming children: the candidates query needs
+  // it to find reposts worth surfacing, the ranker uses it to weight authors,
+  // and the people rail uses it to avoid suggesting accounts already followed.
   const followingIds = viewer ? [...(await getFollowingIds(supabase, viewer.id))] : [];
-
-  const [candidates, affinity, suggestions] = await Promise.all([
-    getFeedCandidates(supabase, { viewerId: viewer?.id ?? null, followingIds }),
-    getFeedAffinity(supabase, viewer?.id ?? null, followingIds),
-    getSuggestedProfiles(supabase, viewer ? [viewer.id, ...followingIds] : []),
-  ]);
-
-  const entries = rankFeed(candidates, affinity, { limit: FEED_LENGTH });
 
   return (
     <AppShell viewer={viewer}>
@@ -68,43 +61,30 @@ export default async function FeedPage() {
             />
           </div>
 
+          {/* Feed entries (150 candidates + Pinecone affinity + ranking) stream
+              independently so the header and composer are never delayed. */}
           <div className="mt-6">
-            {entries.length === 0 ? (
-              <EmptyFeed signedIn={viewer !== null} />
-            ) : (
-              <PostList entries={entries} viewerId={viewer?.id ?? null} />
-            )}
+            <Suspense fallback={<FeedListSkeleton />}>
+              <FeedEntries
+                viewerId={viewer?.id ?? null}
+                followingIds={followingIds}
+              />
+            </Suspense>
           </div>
         </div>
 
         {/* Below the feed on a phone, beside it from lg up — a search box you
-            have to scroll past to reach the posts is a search box in the way. */}
+            have to scroll past to reach the posts is a search box in the way.
+            The suggestions query is fast (one indexed read) and now resolves
+            independently of the Pinecone-heavy feed ranking. */}
         <aside className="mt-12 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start">
-          <h2 className="label">Find people</h2>
-          <div className="mt-3">
-            <PeopleSearch />
-          </div>
-
-          {suggestions.length > 0 && (
-            <section className="mt-8">
-              <h2 className="label">New here</h2>
-              <ul className="mt-3 flex flex-col gap-4">
-                {suggestions.map((person) => (
-                  <SuggestionRow
-                    key={person.id}
-                    person={person}
-                    showFollow={viewer !== null}
-                  />
-                ))}
-              </ul>
-              <Link
-                href="/people"
-                className="meta mt-4 inline-block transition-colors hover:text-lamp"
-              >
-                Search everyone
-              </Link>
-            </section>
-          )}
+          <Suspense fallback={<PeopleSidebarSkeleton />}>
+            <PeopleSidebar
+              viewerId={viewer?.id ?? null}
+              followingIds={followingIds}
+              showFollow={viewer !== null}
+            />
+          </Suspense>
         </aside>
       </main>
     </AppShell>
@@ -186,5 +166,132 @@ function SuggestionRow({
         </div>
       </div>
     </li>
+  );
+}
+
+// ─── streaming components ─────────────────────────────────────────────────────
+
+/**
+ * The ranked post list, streamed independently.
+ *
+ * `getFeedCandidates` hydrates up to 150 posts across three async rounds
+ * (fetch → authors+actions → reposters) and `getFeedAffinity` calls Pinecone
+ * to score film adjacency. Isolating them here means the header, ordering
+ * note, and composer are never blocked by either call.
+ */
+async function FeedEntries({
+  viewerId,
+  followingIds,
+}: {
+  viewerId: string | null;
+  followingIds: string[];
+}) {
+  const supabase = await createServerSupabase();
+  const [candidates, affinity] = await Promise.all([
+    getFeedCandidates(supabase, { viewerId, followingIds }),
+    getFeedAffinity(supabase, viewerId, followingIds),
+  ]);
+  const entries = rankFeed(candidates, affinity, { limit: FEED_LENGTH });
+
+  if (entries.length === 0) return <EmptyFeed signedIn={viewerId !== null} />;
+  return <PostList entries={entries} viewerId={viewerId} />;
+}
+
+/**
+ * The people rail (search box + suggestions), streamed independently.
+ *
+ * `getSuggestedProfiles` is a single indexed read. It was previously blocked
+ * by the same `Promise.all` as the Pinecone-heavy feed ranking, adding
+ * 400–600ms to what is actually a fast query. Now it resolves on its own.
+ */
+async function PeopleSidebar({
+  viewerId,
+  followingIds,
+  showFollow,
+}: {
+  viewerId: string | null;
+  followingIds: string[];
+  showFollow: boolean;
+}) {
+  const supabase = await createServerSupabase();
+  const suggestions = await getSuggestedProfiles(
+    supabase,
+    viewerId ? [viewerId, ...followingIds] : [],
+  );
+
+  return (
+    <>
+      <h2 className="label">Find people</h2>
+      <div className="mt-3">
+        <PeopleSearch />
+      </div>
+
+      {suggestions.length > 0 && (
+        <section className="mt-8">
+          <h2 className="label">New here</h2>
+          <ul className="mt-3 flex flex-col gap-4">
+            {suggestions.map((person) => (
+              <SuggestionRow
+                key={person.id}
+                person={person}
+                showFollow={showFollow}
+              />
+            ))}
+          </ul>
+          <Link
+            href="/people"
+            className="meta mt-4 inline-block transition-colors hover:text-lamp"
+          >
+            Search everyone
+          </Link>
+        </section>
+      )}
+    </>
+  );
+}
+
+// ─── skeletons ────────────────────────────────────────────────────────────────
+
+function FeedListSkeleton() {
+  return (
+    <div className="space-y-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="rounded-xl border border-ink-line p-5">
+          <div className="flex items-center gap-3">
+            <div className="skeleton size-9 shrink-0 rounded-full" />
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-28 rounded" />
+              <div className="skeleton h-3 w-20 rounded" />
+            </div>
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="skeleton h-3 w-full rounded" />
+            <div className="skeleton h-3 w-3/4 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PeopleSidebarSkeleton() {
+  return (
+    <>
+      <div className="skeleton h-4 w-20 rounded" />
+      <div className="mt-3">
+        <div className="skeleton h-10 w-full rounded-lg" />
+      </div>
+      <div className="mt-8 space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="flex items-start gap-3">
+            <div className="skeleton size-9 shrink-0 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <div className="skeleton h-3.5 w-28 rounded" />
+              <div className="skeleton h-3 w-20 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
