@@ -123,20 +123,33 @@ function AuthButtons() {
 
   return (
     <div className="ml-1 flex items-center gap-2">
+      {/* Mobile single user icon button to prevent header overflow */}
       <button
         type="button"
-        onClick={() => signIn(undefined, "signin")}
-        className="btn btn-quiet h-9 px-4 text-sm"
+        onClick={() => signIn()}
+        aria-label="Sign in"
+        className={`${ICON_CONTROL} sm:hidden`}
       >
-        Log in
+        <Icon icon="lucide:user" width={24} height={24} aria-hidden />
       </button>
-      <button
-        type="button"
-        onClick={() => signIn(undefined, "signup")}
-        className="btn btn-primary h-9 px-4 text-sm"
-      >
-        Sign up
-      </button>
+
+      {/* Desktop full buttons */}
+      <div className="hidden items-center gap-2 sm:flex">
+        <button
+          type="button"
+          onClick={() => signIn(undefined, "signin")}
+          className="btn btn-quiet h-9 px-4 text-sm"
+        >
+          Log in
+        </button>
+        <button
+          type="button"
+          onClick={() => signIn(undefined, "signup")}
+          className="btn btn-primary h-9 px-4 text-sm"
+        >
+          Sign up
+        </button>
+      </div>
     </div>
   );
 }
