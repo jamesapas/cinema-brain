@@ -1,80 +1,90 @@
+import { AppShell } from "@/app/components/app-shell";
+
 /**
- * Shown while the feed is being ranked and built.
+ * Shown while the feed route is loading.
  *
- * Matches the real page's two-column layout at lg+: the post column on the
- * left and the "Find people" aside on the right. Post cards are the most
- * visible element, so the skeleton keeps their shape — avatar, name, body
- * lines, and the optional film thumbnail slot — so the jump from loading to
- * loaded is as small as possible.
+ * Matches the page's exact layout: AppShell header, composer pill, post card list,
+ * and the 22rem right sidebar.
  */
 export default function Loading() {
   return (
-    <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-14">
-      {/* Feed column */}
-      <div className="min-w-0 max-w-2xl">
-        <header>
-          <div className="skeleton h-8 w-16 rounded" />
-          <div className="skeleton mt-1 h-3 w-64 rounded" />
-        </header>
+    <AppShell viewer={null}>
+      <main className="page-container flex-1 pt-24 sm:pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-16 max-w-6xl">
+        <div className="min-w-0 w-full">
+          <header>
+            <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
+          </header>
 
-        {/* Composer placeholder */}
-        <div className="mt-6 skeleton h-20 w-full rounded-xl" />
+          <div className="mt-6">
+            <div className="skeleton h-[50px] w-full rounded-full border border-ink-line" />
+          </div>
 
-        {/* Post card skeletons */}
-        <div className="mt-6 flex flex-col gap-5">
-          {[...Array(5)].map((_, i) => (
-            <article key={i} className="rounded-xl border border-ink-line p-5">
-              {/* Author row */}
-              <div className="flex items-center gap-3">
-                <div className="skeleton size-9 shrink-0 rounded-full" />
-                <div className="space-y-1.5">
-                  <div className="skeleton h-3.5 w-28 rounded" />
-                  <div className="skeleton h-3 w-20 rounded" />
-                </div>
-              </div>
+          <div className="mt-6 divide-y divide-ink-line">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="py-5">
+                <div className="flex gap-3.5">
+                  <div className="skeleton size-[44px] shrink-0 rounded-full" />
 
-              {/* Body */}
-              <div className="mt-4 space-y-2">
-                <div className="skeleton h-3.5 w-full rounded" />
-                <div className="skeleton h-3.5 w-5/6 rounded" />
-                {i % 2 === 0 && <div className="skeleton h-3.5 w-2/3 rounded" />}
-              </div>
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="skeleton h-4 w-28 rounded-md" />
+                        <div className="skeleton h-3 w-20 rounded-md" />
+                        <div className="skeleton h-3 w-10 rounded-md" />
+                      </div>
+                      <div className="skeleton h-7 w-16 rounded-full" />
+                    </div>
 
-              {/* Film card slot — only some posts have one */}
-              {i % 3 !== 2 && (
-                <div className="mt-4 flex items-center gap-3 rounded-lg border border-ink-line p-3">
-                  <div className="skeleton aspect-[2/3] h-16 rounded" />
-                  <div className="space-y-2">
-                    <div className="skeleton h-3.5 w-32 rounded" />
-                    <div className="skeleton h-3 w-20 rounded" />
+                    <div className="space-y-2 pt-0.5">
+                      <div className="skeleton h-3.5 w-[92%] rounded-md" />
+                      <div className="skeleton h-3.5 w-[65%] rounded-md" />
+                    </div>
+
+                    {i % 2 === 0 && (
+                      <div className="pt-1">
+                        <div className="skeleton h-40 w-28 rounded-lg" />
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4 pt-1">
+                      <div className="skeleton h-6 w-14 rounded-full" />
+                      <div className="skeleton h-6 w-24 rounded-full" />
+                      <div className="skeleton h-6 w-16 rounded-full" />
+                    </div>
+
+                    <div className="pt-2 border-l-2 border-ink-line pl-3.5">
+                      <div className="skeleton h-9 w-full rounded-lg" />
+                    </div>
                   </div>
                 </div>
-              )}
-            </article>
-          ))}
-        </div>
-      </div>
-
-      {/* Aside — Find people */}
-      <aside className="mt-12 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start">
-        <div className="skeleton h-3 w-20 rounded" />
-        <div className="mt-3 skeleton h-10 w-full rounded-md" />
-
-        <div className="mt-8">
-          <div className="skeleton h-3 w-16 rounded" />
-          <ul className="mt-3 flex flex-col gap-4">
-            {[...Array(4)].map((_, i) => (
-              <li key={i} className="flex items-center gap-3">
-                <div className="skeleton size-9 shrink-0 rounded-full" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="skeleton h-3.5 w-28 rounded" />
-                  <div className="skeleton h-3 w-20 rounded" />
-                </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
-      </aside>
-    </main>
+
+        <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
+          <div>
+            <div className="skeleton h-10 w-full rounded-full" />
+          </div>
+          <div className="mt-8 space-y-4">
+            <div className="skeleton h-4 w-24 rounded-md" />
+            <div className="space-y-4 pt-1">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="skeleton size-9 shrink-0 rounded-full" />
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="skeleton h-3.5 w-24 rounded-md" />
+                      <div className="skeleton h-3 w-16 rounded-md" />
+                    </div>
+                  </div>
+                  <div className="skeleton h-7 w-16 shrink-0 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </main>
+    </AppShell>
   );
 }

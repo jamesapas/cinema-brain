@@ -14,14 +14,16 @@ import type { FeedEntry } from "@/lib/social/posts";
 export function PostList({
   entries,
   viewerId,
+  followingIds = [],
 }: {
   entries: FeedEntry[];
   viewerId: string | null;
+  followingIds?: string[];
 }) {
   return (
     <div className="flex flex-col">
       {entries.map((entry) => (
-        <PostCard key={entry.key} entry={entry} viewerId={viewerId} />
+        <PostCard key={entry.key} entry={entry} viewerId={viewerId} followingIds={followingIds} />
       ))}
     </div>
   );

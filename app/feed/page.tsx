@@ -46,11 +46,10 @@ export default async function FeedPage() {
 
   return (
     <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-14">
-        <div className="min-w-0 max-w-2xl">
+      <main className="page-container flex-1 pt-24 sm:pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-16 max-w-6xl">
+        <div className="min-w-0 w-full">
           <header>
             <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
-            <p className="meta mt-1">{orderingNote(viewer !== null, followingIds.length)}</p>
           </header>
 
           <div className="mt-6">
@@ -77,12 +76,12 @@ export default async function FeedPage() {
             have to scroll past to reach the posts is a search box in the way.
             The suggestions query is fast (one indexed read) and now resolves
             independently of the Pinecone-heavy feed ranking. */}
-        <aside className="mt-12 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start">
+        <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
           <Suspense fallback={<PeopleSidebarSkeleton />}>
             <PeopleSidebar
               viewerId={viewer?.id ?? null}
               followingIds={followingIds}
-              showFollow={viewer !== null}
+              showFollow={true}
             />
           </Suspense>
         </aside>
@@ -142,10 +141,10 @@ function SuggestionRow({
 
         <div className="min-w-0 flex-1">
           <Link href={`/${person.username}`} className="block min-w-0">
-            <p className="truncate text-sm font-semibold text-bone">
+            <p className="truncate text-sm font-semibold text-bone hover:text-bone/80 transition-colors">
               {displayNameFor(person.display_name, person.username)}
             </p>
-            <p className="meta truncate !text-xs">@{person.username}</p>
+            <p className="meta truncate !text-xs text-bone-dim">@{person.username}</p>
           </Link>
 
           {person.bio && (
@@ -154,15 +153,13 @@ function SuggestionRow({
             </p>
           )}
 
-          {showFollow && (
-            <div className="mt-2">
-              <FollowButton
-                targetId={person.id}
-                targetUsername={person.username}
-                initialFollowing={false}
-              />
-            </div>
-          )}
+          <div className="mt-2">
+            <FollowButton
+              targetId={person.id}
+              targetUsername={person.username}
+              initialFollowing={false}
+            />
+          </div>
         </div>
       </div>
     </li>
@@ -194,7 +191,7 @@ async function FeedEntries({
   const entries = rankFeed(candidates, affinity, { limit: FEED_LENGTH });
 
   if (entries.length === 0) return <EmptyFeed signedIn={viewerId !== null} />;
-  return <PostList entries={entries} viewerId={viewerId} />;
+  return <PostList entries={entries} viewerId={viewerId} followingIds={followingIds} />;
 }
 
 /**
@@ -221,14 +218,13 @@ async function PeopleSidebar({
 
   return (
     <>
-      <h2 className="label">Find people</h2>
-      <div className="mt-3">
+      <div>
         <PeopleSearch />
       </div>
 
-      {suggestions.length > 0 && (
-        <section className="mt-8">
-          <h2 className="label">New here</h2>
+      <section className="mt-8">
+        <h2 className="text-sm font-semibold text-bone-soft">Suggestions</h2>
+        {suggestions.length > 0 ? (
           <ul className="mt-3 flex flex-col gap-4">
             {suggestions.map((person) => (
               <SuggestionRow
@@ -238,14 +234,12 @@ async function PeopleSidebar({
               />
             ))}
           </ul>
-          <Link
-            href="/people"
-            className="meta mt-4 inline-block transition-colors hover:text-lamp"
-          >
-            Search everyone
-          </Link>
-        </section>
-      )}
+        ) : (
+          <p className="meta mt-3 !text-xs text-bone-dim leading-relaxed">
+            No suggestions available right now. Check back later to discover new film lovers!
+          </p>
+        )}
+      </section>
     </>
   );
 }
@@ -254,19 +248,43 @@ async function PeopleSidebar({
 
 function FeedListSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="divide-y divide-ink-line">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="rounded-xl border border-ink-line p-5">
-          <div className="flex items-center gap-3">
-            <div className="skeleton size-9 shrink-0 rounded-full" />
-            <div className="space-y-1.5">
-              <div className="skeleton h-3.5 w-28 rounded" />
-              <div className="skeleton h-3 w-20 rounded" />
+        <div key={i} className="py-5">
+          <div className="flex gap-3.5">
+            <div className="skeleton size-[44px] shrink-0 rounded-full" />
+
+            <div className="min-w-0 flex-1 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="skeleton h-4 w-28 rounded-md" />
+                  <div className="skeleton h-3 w-20 rounded-md" />
+                  <div className="skeleton h-3 w-10 rounded-md" />
+                </div>
+                <div className="skeleton h-7 w-16 rounded-full" />
+              </div>
+
+              <div className="space-y-2 pt-0.5">
+                <div className="skeleton h-3.5 w-[92%] rounded-md" />
+                <div className="skeleton h-3.5 w-[65%] rounded-md" />
+              </div>
+
+              {i % 2 === 0 && (
+                <div className="pt-1">
+                  <div className="skeleton h-40 w-28 rounded-lg" />
+                </div>
+              )}
+
+              <div className="flex items-center gap-4 pt-1">
+                <div className="skeleton h-6 w-14 rounded-full" />
+                <div className="skeleton h-6 w-24 rounded-full" />
+                <div className="skeleton h-6 w-16 rounded-full" />
+              </div>
+
+              <div className="pt-2 border-l-2 border-ink-line pl-3.5">
+                <div className="skeleton h-9 w-full rounded-lg" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="skeleton h-3 w-full rounded" />
-            <div className="skeleton h-3 w-3/4 rounded" />
           </div>
         </div>
       ))}
@@ -277,20 +295,25 @@ function FeedListSkeleton() {
 function PeopleSidebarSkeleton() {
   return (
     <>
-      <div className="skeleton h-4 w-20 rounded" />
-      <div className="mt-3">
-        <div className="skeleton h-10 w-full rounded-lg" />
+      <div>
+        <div className="skeleton h-10 w-full rounded-full" />
       </div>
       <div className="mt-8 space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <div className="skeleton size-9 shrink-0 rounded-full" />
-            <div className="flex-1 space-y-1.5">
-              <div className="skeleton h-3.5 w-28 rounded" />
-              <div className="skeleton h-3 w-20 rounded" />
+        <div className="skeleton h-4 w-24 rounded-md" />
+        <div className="space-y-4 pt-1">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="skeleton size-9 shrink-0 rounded-full" />
+                <div className="space-y-1.5 min-w-0">
+                  <div className="skeleton h-3.5 w-24 rounded-md" />
+                  <div className="skeleton h-3 w-16 rounded-md" />
+                </div>
+              </div>
+              <div className="skeleton h-7 w-16 shrink-0 rounded-full" />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </>
   );

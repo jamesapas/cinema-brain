@@ -32,9 +32,9 @@ export function SearchField({ initialQuery }: { initialQuery: string }) {
     <div className="relative">
       {/* Same icon the header uses, so the control reads as the same feature. */}
       <Icon
-        icon="iconamoon:search"
-        width={22}
-        height={22}
+        icon="lucide:search"
+        width={20}
+        height={20}
         aria-hidden
         className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-bone-dim"
       />

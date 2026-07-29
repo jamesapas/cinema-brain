@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { follow, unfollow } from "@/app/actions/follow";
 import { useSignIn, useSignedIn } from "@/app/components/session";
@@ -10,15 +10,36 @@ export function FollowButton({
   targetId,
   targetUsername,
   initialFollowing,
+  className,
 }: {
   targetId: string;
   targetUsername: string;
   initialFollowing: boolean;
+  className?: string | ((following: boolean) => string);
 }) {
   const signedIn = useSignedIn();
   const signIn = useSignIn();
   const [following, setFollowing] = useState(initialFollowing);
-  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    function handleFollowChange(event: Event) {
+      const customEvent = event as CustomEvent<{ targetId: string; following: boolean }>;
+      if (customEvent.detail && customEvent.detail.targetId === targetId) {
+        setFollowing(customEvent.detail.following);
+      }
+    }
+
+    window.addEventListener("kino:follow-change", handleFollowChange);
+    return () => window.removeEventListener("kino:follow-change", handleFollowChange);
+  }, [targetId]);
+
+  function broadcast(next: boolean) {
+    window.dispatchEvent(
+      new CustomEvent("kino:follow-change", {
+        detail: { targetId, following: next },
+      }),
+    );
+  }
 
   function click() {
     if (!signedIn) {
@@ -26,21 +47,34 @@ export function FollowButton({
       return;
     }
     const next = !following;
+
+    // Instant optimistic update for immediate color & text response
     setFollowing(next);
-    startTransition(async () => {
-      const result = next
-        ? await follow(targetId, targetUsername)
-        : await unfollow(targetId, targetUsername);
-      if (!result.ok) setFollowing(!next);
+    broadcast(next);
+
+    const action = next
+      ? follow(targetId, targetUsername)
+      : unfollow(targetId, targetUsername);
+
+    action.then((result) => {
+      if (!result.ok) {
+        setFollowing(!next);
+        broadcast(!next);
+      }
     });
   }
+
+  const computedClassName =
+    typeof className === "function"
+      ? className(following)
+      : className ?? `w-full ${following ? "btn btn-quiet" : "btn btn-primary"}`;
 
   return (
     <button
       type="button"
       onClick={click}
       aria-pressed={signedIn && following}
-      className={`w-full ${following ? "btn btn-quiet" : "btn btn-primary"}`}
+      className={computedClassName}
     >
       {signedIn && following ? "Following" : "Follow"}
     </button>
