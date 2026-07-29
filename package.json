@@ -11,6 +11,7 @@
     "lint": "eslint",
     "sync:movies": "tsx scripts/sync-movies.ts",
     "sync:changes": "tsx scripts/sync-tmdb-changes.ts",
+    "sync:trending": "tsx scripts/sync-trending.ts",
     "pinecone:setup": "tsx scripts/setup-pinecone.ts",
     "embed:movies": "tsx scripts/embed-movies.ts",
     "verify:catalog": "tsx scripts/verify-catalog.ts",

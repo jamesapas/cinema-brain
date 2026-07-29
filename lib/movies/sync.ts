@@ -10,6 +10,7 @@ import {
   discoverMovies,
   getChangedMovieIds,
   getMovieDetails,
+  getTrendingMovies,
   mapWithConcurrency,
   type DiscoverOptions,
   type TmdbMovieDetails,
@@ -434,4 +435,122 @@ export async function syncMoviesByYear(
   }
 
   return total;
+}
+
+// ─── trending ──────────────────────────────────────────────────────────────
+
+export type TrendingSyncOptions = {
+  /** How many /trending/movie/day pages to fetch (20 movies each). */
+  pages?: number;
+  onProgress?: (message: string) => void;
+};
+
+export type TrendingSyncResult = {
+  moviesUpserted: number;
+  needsEmbedding: number;
+  trendingRanked: number;
+  failed: number;
+};
+
+/**
+ * Syncs TMDB's `/trending/movie/day` into the catalog and stamps each row
+ * with its rank.
+ *
+ * The trending endpoint measures real-time user activity (page views, ratings,
+ * searches) — what TMDB's website shows as "Trending Today". This is what
+ * the homepage's "Trending" shelf should reflect.
+ *
+ * Steps:
+ * 1. Fetch trending pages (default 2 = ~40 movies).
+ * 2. For each movie, get full details and upsert into the catalog.
+ * 3. Clear all existing trending_rank values (one UPDATE).
+ * 4. Write fresh trending_rank (1-based) and trending_at on the new set.
+ *
+ * The clear-then-write happens last so a fetch failure doesn't wipe ranks
+ * without replacing them.
+ */
+export async function syncTrending(
+  supabase: SupabaseClient<Database>,
+  { pages = 2, onProgress = () => {} }: TrendingSyncOptions = {},
+): Promise<TrendingSyncResult> {
+  const result: TrendingSyncResult = {
+    moviesUpserted: 0,
+    needsEmbedding: 0,
+    trendingRanked: 0,
+    failed: 0,
+  };
+
+  // 1. Fetch trending movie IDs in rank order
+  const ranked: { id: number; rank: number }[] = [];
+
+  for (let page = 1; page <= pages; page++) {
+    const trending = await getTrendingMovies(page);
+    for (const movie of trending.results) {
+      ranked.push({ id: movie.id, rank: ranked.length + 1 });
+    }
+    onProgress(`trending page ${page}/${pages}: ${trending.results.length} movies`);
+  }
+
+  if (ranked.length === 0) {
+    onProgress("no trending movies returned — skipping");
+    return result;
+  }
+
+  // 2. Fetch full details and upsert into catalog
+  const details = await mapWithConcurrency(
+    ranked,
+    DETAIL_CONCURRENCY,
+    async ({ id }) => {
+      try {
+        return await getMovieDetails(id);
+      } catch (error) {
+        onProgress(
+          `skipping ${id}: ${error instanceof TmdbError ? `TMDB ${error.status}` : error}`,
+        );
+        return null;
+      }
+    },
+  );
+
+  const fetched = details.filter((d): d is TmdbMovieDetails => d !== null);
+  result.failed = ranked.length - fetched.length;
+
+  const rows = fetched.map(mapDetailsToRow);
+
+  for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
+    const { needsEmbedding } = await upsertBatch(supabase, batch);
+    result.needsEmbedding += needsEmbedding;
+    result.moviesUpserted += batch.length;
+  }
+
+  // 3. Clear all existing trending ranks
+  const { error: clearError } = await supabase
+    .from("movies")
+    .update({ trending_rank: null, trending_at: null })
+    .not("trending_rank", "is", null);
+
+  if (clearError) {
+    throw new Error(`Failed to clear trending ranks: ${clearError.message}`);
+  }
+
+  // 4. Write fresh ranks — one update per movie is fine for ~40 rows
+  const now = new Date().toISOString();
+  const fetchedIds = new Set(fetched.map((d) => d.id));
+
+  for (const { id, rank } of ranked) {
+    if (!fetchedIds.has(id)) continue;
+
+    const { error } = await supabase
+      .from("movies")
+      .update({ trending_rank: rank, trending_at: now })
+      .eq("id", id);
+
+    if (error) {
+      onProgress(`failed to set rank ${rank} on movie ${id}: ${error.message}`);
+      continue;
+    }
+    result.trendingRanked++;
+  }
+
+  return result;
 }

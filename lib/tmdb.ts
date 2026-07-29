@@ -150,6 +150,30 @@ export function discoverMovies({
   });
 }
 
+export type TmdbTrendingResponse = {
+  page: number;
+  total_pages: number;
+  total_results: number;
+  results: TmdbDiscoverMovie[];
+};
+
+/**
+ * TMDB's daily trending list — what their website shows as "Trending Today".
+ *
+ * Unlike the discover endpoint's `popularity` sort (a slow-moving composite
+ * score), this measures real-time user activity: page views, ratings, and
+ * searches. A film opening this weekend shows up here immediately.
+ */
+export function getTrendingMovies(
+  page = 1,
+  language = "en-US",
+): Promise<TmdbTrendingResponse> {
+  return tmdbFetch<TmdbTrendingResponse>("/trending/movie/day", {
+    page,
+    language,
+  });
+}
+
 export function getMovieDetails(
   id: number,
   language = "en-US",

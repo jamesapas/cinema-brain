@@ -53,6 +53,7 @@ const getCachedTrending = unstable_cache(
       await admin
         .from("movies")
         .select(CARD_SELECT)
+        .order("trending_rank", { ascending: true, nullsFirst: false })
         .order("popularity", { ascending: false, nullsFirst: false })
         .limit(limit),
       "Trending",
