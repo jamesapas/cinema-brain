@@ -9,6 +9,7 @@ import { CarouselRow } from "@/app/components/carousel-row";
 import { AskAboutButton } from "@/app/components/chat-overlay";
 import { ListButtons } from "@/app/components/movie-lists";
 import { MovieMeta } from "@/app/components/movie-meta";
+import { MovieOverview } from "@/app/components/movie-overview";
 import { StarRating } from "@/app/components/star-rating";
 import { TrailerButton } from "@/app/components/trailer-button";
 import {
@@ -110,11 +111,7 @@ export default async function MoviePage({ params }: PageProps) {
                 </p>
               )}
 
-              {movie.overview && (
-                <p className="mt-3 text-xs leading-relaxed text-bone-soft sm:mt-5 sm:text-sm sm:leading-relaxed">
-                  {movie.overview}
-                </p>
-              )}
+              {movie.overview && <MovieOverview overview={movie.overview} />}
 
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 sm:mt-6">
                 <AskAboutButton title={movie.title} />
