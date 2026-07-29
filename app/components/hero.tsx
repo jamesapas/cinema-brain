@@ -161,9 +161,8 @@ export function Hero({
             fill
             priority={slideIndex === 0}
             sizes="100vw"
-            className={`object-cover object-top transition-opacity duration-700 ease-out ${
-              slideIndex === index ? "opacity-100" : "opacity-0"
-            }`}
+            className={`object-cover object-top transition-opacity duration-700 ease-out ${slideIndex === index ? "opacity-100" : "opacity-0"
+              }`}
           />
         );
       })}
@@ -193,7 +192,7 @@ export function Hero({
           <MovieMeta movie={movie} className="mt-2 sm:mt-3 !text-xs sm:!text-sm" />
 
           {text && (
-            <p className="mt-2.5 text-xs leading-relaxed text-bone-soft sm:mt-4 sm:text-sm sm:leading-relaxed">
+            <p className="mt-2.5 line-clamp-3 text-xs leading-relaxed text-bone-soft sm:mt-4 sm:text-sm sm:leading-relaxed">
               {text}
             </p>
           )}
@@ -221,11 +220,10 @@ export function Hero({
                 onClick={() => setIndex(slideIndex)}
                 aria-label={`Show ${slide.title}`}
                 aria-current={slideIndex === index}
-                className={`h-1 rounded-full transition-all duration-300 ${
-                  slideIndex === index
-                    ? "w-8 bg-bone"
-                    : "w-4 bg-bone/30 hover:bg-bone/60"
-                }`}
+                className={`h-1 rounded-full transition-all duration-300 ${slideIndex === index
+                  ? "w-8 bg-bone"
+                  : "w-4 bg-bone/30 hover:bg-bone/60"
+                  }`}
               />
             ))}
           </div>

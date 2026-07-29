@@ -29,10 +29,10 @@ export function MovieMeta({
   className?: string;
 }) {
   const runtime = formatRuntime(movie.runtime);
-  const items: { key: string; node: ReactNode }[] = [];
+  const metaItems: { key: string; node: ReactNode }[] = [];
 
   if (movie.vote_average !== null) {
-    items.push({
+    metaItems.push({
       key: "score",
       node: (
         // Gold, and the only coloured thing in the line — the star alone is
@@ -53,25 +53,23 @@ export function MovieMeta({
   }
 
   if (movie.release_year) {
-    items.push({ key: "year", node: <span>{movie.release_year}</span> });
+    metaItems.push({ key: "year", node: <span>{movie.release_year}</span> });
   }
 
   if (runtime) {
-    items.push({ key: "runtime", node: <span>{runtime}</span> });
+    metaItems.push({ key: "runtime", node: <span>{runtime}</span> });
   }
 
-  for (const genre of movie.genres.slice(0, genreCount)) {
-    items.push({ key: `genre-${genre}`, node: <span>{genre}</span> });
-  }
+  const genres = movie.genres.slice(0, genreCount);
 
-  if (items.length === 0) return null;
+  if (metaItems.length === 0 && genres.length === 0) return null;
 
   return (
     // Wrapping, because six items at a phone's width is two lines; the dots are
     // dimmer than what they separate and hidden from assistive tech, where they
     // would otherwise be read aloud as "middle dot" between every fact.
     <p className={`meta flex flex-wrap items-center gap-x-2 gap-y-1 ${className}`}>
-      {items.map((item, index) => (
+      {metaItems.map((item, index) => (
         <Fragment key={item.key}>
           {index > 0 && (
             <span aria-hidden="true" className="text-bone-dim/60">
@@ -81,6 +79,30 @@ export function MovieMeta({
           {item.node}
         </Fragment>
       ))}
+
+      {genres.length > 0 && (
+        <>
+          {metaItems.length > 0 && (
+            <span aria-hidden="true" className="text-bone-dim/60">
+              ·
+            </span>
+          )}
+          {/* Mobile: Single joined text string for natural, tight text spacing */}
+          <span className="sm:hidden">{genres.join(", ")}</span>
+
+          {/* Desktop: Individual flex items separated by dots */}
+          {genres.map((genre, index) => (
+            <Fragment key={`desktop-genre-${genre}`}>
+              {index > 0 && (
+                <span aria-hidden="true" className="hidden sm:inline text-bone-dim/60">
+                  ·
+                </span>
+              )}
+              <span className="hidden sm:inline">{genre}</span>
+            </Fragment>
+          ))}
+        </>
+      )}
     </p>
   );
 }
