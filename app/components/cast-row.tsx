@@ -41,14 +41,14 @@ export function CastRow({ items }: { items: MovieCastItem[] }) {
     <div className="group/row relative">
       <div
         ref={trackRef}
-        className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth touch-pan-x pb-3"
+        className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth touch-pan-x pb-3 sm:gap-4"
       >
         {items.map((person) => {
           const avatar = profileUrl(person.profile_path, "w185");
           return (
             <div
               key={person.id}
-              className="flex w-24 shrink-0 snap-start flex-col items-center text-center sm:w-28"
+              className="flex w-20 shrink-0 snap-start flex-col items-center text-center sm:w-28"
             >
               <div className="relative size-16 overflow-hidden rounded-full bg-ink-raised ring-1 ring-ink-line sm:size-20">
                 {avatar ? (
@@ -84,11 +84,10 @@ export function CastRow({ items }: { items: MovieCastItem[] }) {
         aria-hidden="true"
         tabIndex={-1}
         onClick={() => scrollBy(-1)}
-        className={`absolute -top-1 bottom-0 left-0 z-20 hidden w-16 items-center justify-center text-bone transition-opacity duration-200 hover:text-lamp lg:flex ${
-          canScroll.back
-            ? "bg-gradient-to-r from-ink via-ink/85 to-transparent opacity-0 group-hover/row:opacity-100"
-            : "pointer-events-none opacity-0"
-        }`}
+        className={`absolute -top-1 bottom-0 left-0 z-20 hidden w-16 items-center justify-center text-bone transition-opacity duration-200 hover:text-lamp lg:flex ${canScroll.back
+          ? "bg-gradient-to-r from-ink via-ink/85 to-transparent opacity-0 group-hover/row:opacity-100"
+          : "pointer-events-none opacity-0"
+          }`}
       >
         <svg
           width="28"
@@ -110,11 +109,10 @@ export function CastRow({ items }: { items: MovieCastItem[] }) {
         aria-hidden="true"
         tabIndex={-1}
         onClick={() => scrollBy(1)}
-        className={`absolute -top-1 bottom-0 right-0 z-20 hidden w-16 items-center justify-center text-bone transition-opacity duration-200 hover:text-lamp lg:flex ${
-          canScroll.forward
-            ? "bg-gradient-to-l from-ink via-ink/85 to-transparent opacity-0 group-hover/row:opacity-100"
-            : "pointer-events-none opacity-0"
-        }`}
+        className={`absolute -top-1 bottom-0 right-0 z-20 hidden w-16 items-center justify-center text-bone transition-opacity duration-200 hover:text-lamp lg:flex ${canScroll.forward
+          ? "bg-gradient-to-l from-ink via-ink/85 to-transparent opacity-0 group-hover/row:opacity-100"
+          : "pointer-events-none opacity-0"
+          }`}
       >
         <svg
           width="28"

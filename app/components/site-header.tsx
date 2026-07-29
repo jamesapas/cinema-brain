@@ -49,8 +49,8 @@ export function SiteHeader({
   return (
     <header
       className={`fixed inset-x-0 top-0 z-30 transition-colors duration-300 ${scrolled
-          ? "bg-ink/95 backdrop-blur-md"
-          : "bg-gradient-to-b from-ink via-ink/60 to-transparent"
+        ? "bg-ink/95 backdrop-blur-md"
+        : "bg-gradient-to-b from-ink via-ink/60 to-transparent"
         }`}
     >
       {/* The bar spans the viewport so its fill covers everything passing
@@ -61,7 +61,7 @@ export function SiteHeader({
             mark that answers you in the panel. */}
         <KinoLogo />
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           <NavLink href="/" icon="lucide:home" label="Home" />
 
           {/* Public like the catalog, so it's here signed out too — the feed
@@ -135,7 +135,7 @@ function AuthButtons() {
       </button>
 
       {/* Desktop full buttons */}
-      <div className="hidden items-center gap-2 sm:ml-1 sm:flex">
+      <div className="hidden items-center gap-1.5 sm:ml-0.5 sm:flex">
         <button
           type="button"
           onClick={() => signIn(undefined, "signin")}
@@ -162,9 +162,6 @@ const ICON_CONTROL =
 /**
  * A destination in the bar. The wordmark already goes home; this is the
  * signpost that says so, and it marks itself when you're there.
- *
- * Icon only, since it sits in a row of icon controls — the label would be the
- * one piece of text among them. The name is still announced.
  */
 function NavLink({
   href,
@@ -183,9 +180,10 @@ function NavLink({
       href={href}
       aria-label={label}
       aria-current={current ? "page" : undefined}
-      className={`${ICON_CONTROL} ${current ? "!text-bone" : ""}`}
+      className="grid h-10 w-10 place-items-center rounded-full text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone sm:flex sm:w-auto sm:gap-2.5 sm:px-3 sm:text-sm sm:font-medium"
     >
       <Icon icon={icon} width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
+      <span className="hidden sm:inline">{label}</span>
     </Link>
   );
 }

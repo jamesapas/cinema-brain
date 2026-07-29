@@ -130,8 +130,8 @@ export default async function MoviePage({ params }: PageProps) {
         </section>
 
         {cast.length > 0 && (
-          <div className="page-container pt-12 sm:pt-14">
-            <h2 className="mb-4 text-lg font-bold text-bone sm:text-xl">Cast</h2>
+          <div className="page-container pt-8 sm:pt-14">
+            <h2 className="mb-2.5 text-lg font-bold text-bone sm:mb-4 sm:text-xl">Cast</h2>
             <CastRow items={cast} />
           </div>
         )}

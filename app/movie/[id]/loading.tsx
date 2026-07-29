@@ -68,13 +68,13 @@ export default function Loading() {
       </section>
 
       {/* Cast section skeleton */}
-      <div className="page-container pt-12 sm:pt-14">
-        <div className="mb-4 skeleton h-7 w-16 rounded" />
-        <div className="no-scrollbar flex gap-4 overflow-hidden pb-3">
+      <div className="page-container pt-8 sm:pt-14">
+        <div className="mb-2.5 skeleton h-7 w-16 rounded sm:mb-4" />
+        <div className="no-scrollbar flex gap-3 overflow-hidden pb-3 sm:gap-4">
           {[...Array(12)].map((_, i) => (
             <div
               key={i}
-              className="flex w-24 shrink-0 flex-col items-center sm:w-28"
+              className="flex w-20 shrink-0 flex-col items-center sm:w-28"
             >
               <div className="skeleton size-16 rounded-full sm:size-20" />
               <div className="mt-2 skeleton h-4 w-16 rounded sm:h-5 sm:w-20" />
