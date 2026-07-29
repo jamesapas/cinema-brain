@@ -35,7 +35,7 @@ export function Avatar({
   return (
     <span
       style={style}
-      className={`relative block shrink-0 overflow-hidden rounded-full ${className}`}
+      className={`skeleton relative block shrink-0 overflow-hidden rounded-full ${className}`}
     >
       {/* next/image resizes it, so a 512px upload isn't shipped whole into a
           36px hole. */}

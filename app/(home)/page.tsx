@@ -89,9 +89,11 @@ export default async function Home({
         >
           {/* Top Picks for You streams right below the hero banner. Fast cached
               reads show immediately; fresh lookups stream seamlessly. */}
-          <Suspense fallback={<ShelfSkeleton />}>
-            <TopPicksShelf viewerId={viewer?.id ?? null} />
-          </Suspense>
+          {viewer?.id && (
+            <Suspense fallback={<ShelfSkeleton />}>
+              <TopPicksShelf viewerId={viewer.id} />
+            </Suspense>
+          )}
 
           {/* Catalog shelves served from cache */}
           <CarouselRow

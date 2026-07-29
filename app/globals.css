@@ -32,6 +32,19 @@
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-prose: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  --animate-skeleton-breathe: skeleton-breathe 1.8s ease-in-out infinite;
+
+  @keyframes skeleton-breathe {
+    0%,
+    100% {
+      background-color: var(--color-ink-line, #1a232c);
+    }
+    50% {
+      background-color: #354454;
+      background-color: color-mix(in srgb, var(--color-bone, #f4f0e8) 18%, var(--color-ink-line, #1a232c));
+    }
+  }
 }
 
 body {
@@ -454,30 +467,22 @@ button:disabled {
  * `rounded-*` utility on the same element, so each skeleton still states its
  * own corner the way the thing it replaces does.
  */
-.skeleton {
-  background-color: #1a232c;
+@utility skeleton {
   background-color: var(--color-ink-line, #1a232c);
-  animation: skeleton-breathe 1.8s ease-in-out infinite;
+  animation: var(--animate-skeleton-breathe, skeleton-breathe 1.8s ease-in-out infinite);
 }
 
-@keyframes skeleton-breathe {
-  0%,
-  100% {
-    background-color: #1a232c;
-    background-color: var(--color-ink-line, #1a232c);
-  }
-  50% {
-    background-color: #2a3644;
-    background-color: color-mix(in srgb, var(--color-bone, #f4f0e8) 12%, var(--color-ink-line, #1a232c));
-  }
+.skeleton {
+  background-color: var(--color-ink-line, #1a232c);
+  animation: skeleton-breathe 1.8s ease-in-out infinite;
 }
 
 /* A page that is merely loading has no business animating for someone who
    asked for stillness. */
 @media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
-    background-color: #1a232c;
+  .skeleton,
+  [class~="skeleton"] {
+    animation: none !important;
     background-color: var(--color-ink-line, #1a232c);
   }
 }

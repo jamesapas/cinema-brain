@@ -67,7 +67,7 @@ export function PosterCard({
 
   return (
     <article className={`group shrink-0 snap-start ${width}`}>
-      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-ink-raised ring-1 ring-ink-line transition-[box-shadow,filter] duration-200">
+      <div className="skeleton relative aspect-[2/3] overflow-hidden rounded-lg bg-ink-raised ring-1 ring-ink-line transition-[box-shadow,filter] duration-200">
         <Image
           src={src}
           alt={`${movie.title} poster`}
