@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { AppShell } from "@/app/components/app-shell";
 import { NavigationProgressBar } from "@/app/components/navigation-progress";
@@ -58,6 +59,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <NavigationProgressBar />
         <AppShell viewer={viewer}>{children}</AppShell>
+        <SpeedInsights />
       </body>
     </html>
   );
