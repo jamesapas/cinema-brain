@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
 import { KinoTake } from "@/app/components/kino-take";
@@ -52,15 +51,13 @@ export default async function UsernamePage({ params }: PageProps) {
     if (isOwner) {
       // Signed in, but the trigger hasn't backfilled a row yet.
       return (
-        <AppShell viewer={viewer}>
-          <main className="page-container flex flex-1 items-center justify-center pt-28 pb-24">
-            <SignInPrompt
-              heading="Your profile is waiting"
-              body="How you score things, what you gravitate towards, and every film you've rated. Sign in to see yours."
-              reason="To see your profile"
-            />
-          </main>
-        </AppShell>
+        <main className="page-container flex flex-1 items-center justify-center pt-28 pb-24">
+          <SignInPrompt
+            heading="Your profile is waiting"
+            body="How you score things, what you gravitate towards, and every film you've rated. Sign in to see yours."
+            reason="To see your profile"
+          />
+        </main>
       );
     }
     notFound();
@@ -87,8 +84,7 @@ export default async function UsernamePage({ params }: PageProps) {
   const stale = summaryIsStale(rated, profile.taste_summary_key, profile.taste_summary_at);
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
+    <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
         {isOwner ? (
           <ProfileSidebar
             displayName={name}
@@ -256,8 +252,7 @@ export default async function UsernamePage({ params }: PageProps) {
           )}
         </div>
       </main>
-    </AppShell>
-  );
+    );
 }
 
 /**

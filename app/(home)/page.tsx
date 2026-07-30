@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { AppShell } from "@/app/components/app-shell";
 import { CarouselRow } from "@/app/components/carousel-row";
 import { Hero } from "@/app/components/hero";
 import { getViewer } from "@/lib/auth/viewer";
@@ -72,51 +71,49 @@ export default async function Home({
   const ratingsById = Object.fromEntries(ratingsRaw);
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="flex-1 pb-24">
-        {/* Outside the container on purpose: the backdrop is the one full-width
-            thing on the page. */}
-        {heroMovies.length > 0 && (
-          <Hero movies={heroMovies} ratings={ratingsById} />
+    <main className="flex-1 pb-24">
+      {/* Outside the container on purpose: the backdrop is the one full-width
+          thing on the page. */}
+      {heroMovies.length > 0 && (
+        <Hero movies={heroMovies} ratings={ratingsById} />
+      )}
+
+      {/* Without a hero the shelves start at the top, so they need clearance
+          for the fixed header of their own. */}
+      <div
+        className={`page-container flex flex-col gap-2 ${
+          heroMovies.length > 0 ? "pt-6" : "pt-28"
+        }`}
+      >
+        {/* Top Picks for You streams right below the hero banner. Fast cached
+            reads show immediately; fresh lookups stream seamlessly. */}
+        {viewer?.id && (
+          <Suspense fallback={<ShelfSkeleton />}>
+            <TopPicksShelf viewerId={viewer.id} />
+          </Suspense>
         )}
 
-        {/* Without a hero the shelves start at the top, so they need clearance
-            for the fixed header of their own. */}
-        <div
-          className={`page-container flex flex-col gap-2 ${
-            heroMovies.length > 0 ? "pt-6" : "pt-28"
-          }`}
-        >
-          {/* Top Picks for You streams right below the hero banner. Fast cached
-              reads show immediately; fresh lookups stream seamlessly. */}
-          {viewer?.id && (
-            <Suspense fallback={<ShelfSkeleton />}>
-              <TopPicksShelf viewerId={viewer.id} />
-            </Suspense>
-          )}
+        {/* Catalog shelves served from cache */}
+        <CarouselRow
+          title="Trending"
+          movies={trending}
+          ratings={ratingsById}
+          priority
+        />
 
-          {/* Catalog shelves served from cache */}
-          <CarouselRow
-            title="Trending"
-            movies={trending}
-            ratings={ratingsById}
-            priority
-          />
+        <CarouselRow
+          title="Top rated"
+          note="500+ votes"
+          movies={topRated}
+          ratings={ratingsById}
+        />
 
-          <CarouselRow
-            title="Top rated"
-            note="500+ votes"
-            movies={topRated}
-            ratings={ratingsById}
-          />
-
-          {/* Favourite genre shelf */}
-          <Suspense fallback={<ShelfSkeleton />}>
-            <GenreShelf viewerId={viewer?.id ?? null} />
-          </Suspense>
-        </div>
-      </main>
-    </AppShell>
+        {/* Favourite genre shelf */}
+        <Suspense fallback={<ShelfSkeleton />}>
+          <GenreShelf viewerId={viewer?.id ?? null} />
+        </Suspense>
+      </div>
+    </main>
   );
 }
 

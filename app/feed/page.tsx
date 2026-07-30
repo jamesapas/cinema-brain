@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
 import { PeopleSearch } from "@/app/components/people-search";
@@ -45,48 +44,46 @@ export default async function FeedPage() {
   const followingIds = viewer ? [...(await getFollowingIds(supabase, viewer.id))] : [];
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-24 sm:pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-16 max-w-6xl">
-        <div className="min-w-0 w-full">
-          <header>
-            <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
-          </header>
+    <main className="page-container flex-1 pt-24 sm:pt-28 pb-24 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-16 max-w-6xl">
+      <div className="min-w-0 w-full">
+        <header>
+          <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
+        </header>
 
-          <div className="mt-6">
-            <PostComposer
-              displayName={viewer?.displayName ?? "there"}
-              avatarUrl={viewer?.avatarUrl ?? null}
-              initials={viewer?.initials ?? "?"}
-            />
-          </div>
-
-          {/* Feed entries (150 candidates + Pinecone affinity + ranking) stream
-              independently so the header and composer are never delayed. */}
-          <div className="mt-6">
-            <Suspense fallback={<FeedListSkeleton />}>
-              <FeedEntries
-                viewerId={viewer?.id ?? null}
-                followingIds={followingIds}
-              />
-            </Suspense>
-          </div>
+        <div className="mt-6">
+          <PostComposer
+            displayName={viewer?.displayName ?? "there"}
+            avatarUrl={viewer?.avatarUrl ?? null}
+            initials={viewer?.initials ?? "?"}
+          />
         </div>
 
-        {/* Below the feed on a phone, beside it from lg up — a search box you
-            have to scroll past to reach the posts is a search box in the way.
-            The suggestions query is fast (one indexed read) and now resolves
-            independently of the Pinecone-heavy feed ranking. */}
-        <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
-          <Suspense fallback={<PeopleSidebarSkeleton />}>
-            <PeopleSidebar
+        {/* Feed entries (150 candidates + Pinecone affinity + ranking) stream
+            independently so the header and composer are never delayed. */}
+        <div className="mt-6">
+          <Suspense fallback={<FeedListSkeleton />}>
+            <FeedEntries
               viewerId={viewer?.id ?? null}
               followingIds={followingIds}
-              showFollow={true}
             />
           </Suspense>
-        </aside>
-      </main>
-    </AppShell>
+        </div>
+      </div>
+
+      {/* Below the feed on a phone, beside it from lg up — a search box you
+          have to scroll past to reach the posts is a search box in the way.
+          The suggestions query is fast (one indexed read) and now resolves
+          independently of the Pinecone-heavy feed ranking. */}
+      <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
+        <Suspense fallback={<PeopleSidebarSkeleton />}>
+          <PeopleSidebar
+            viewerId={viewer?.id ?? null}
+            followingIds={followingIds}
+            showFollow={true}
+          />
+        </Suspense>
+      </aside>
+    </main>
   );
 }
 

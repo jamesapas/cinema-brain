@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { AppShell } from "@/app/components/app-shell";
 import { PosterCard } from "@/app/components/poster-card";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { SignInPrompt } from "@/app/components/sign-in-prompt";
@@ -37,15 +36,13 @@ export async function MovieListPage({
 
   if (!viewer) {
     return (
-      <AppShell viewer={null}>
-        <main className="page-container flex flex-1 items-center justify-center pt-28 pb-24">
-          <SignInPrompt
-            heading={signedOut.heading}
-            body={signedOut.body}
-            reason={signedOut.reason}
-          />
-        </main>
-      </AppShell>
+      <main className="page-container flex flex-1 items-center justify-center pt-28 pb-24">
+        <SignInPrompt
+          heading={signedOut.heading}
+          body={signedOut.body}
+          reason={signedOut.reason}
+        />
+      </main>
     );
   }
 
@@ -56,49 +53,47 @@ export async function MovieListPage({
   ]);
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
-        <ProfileSidebar
-          displayName={viewer.displayName}
-          username={viewer.username}
-          avatarUrl={viewer.avatarUrl}
-          initials={viewer.initials}
-          bio={viewer.profile?.bio ?? null}
-          followers={counts.followers}
-          following={counts.following}
-        />
+    <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
+      <ProfileSidebar
+        displayName={viewer.displayName}
+        username={viewer.username}
+        avatarUrl={viewer.avatarUrl}
+        initials={viewer.initials}
+        bio={viewer.profile?.bio ?? null}
+        followers={counts.followers}
+        following={counts.following}
+      />
 
-        <div className="mt-10 lg:mt-0">
-          <header>
-            <h1 className="text-2xl font-bold text-bone">{heading}</h1>
-            <p className="meta mt-1">
-              {movies.length === 0 ? "Nothing here yet" : note(movies.length)}
-            </p>
-          </header>
+      <div className="mt-10 lg:mt-0">
+        <header>
+          <h1 className="text-2xl font-bold text-bone">{heading}</h1>
+          <p className="meta mt-1">
+            {movies.length === 0 ? "Nothing here yet" : note(movies.length)}
+          </p>
+        </header>
 
-          {movies.length === 0 ? (
-            <section className="mt-10">
-              <h2 className="text-xl font-bold text-bone">{empty.heading}</h2>
-              <p className="mt-2 max-w-md leading-relaxed text-bone-soft">{empty.body}</p>
-              <Link href="/" className="btn btn-primary mt-6">
-                Browse the catalog
-              </Link>
-            </section>
-          ) : (
-            // The overview's grid, down to the width override: a shelf of your
-            // films should be the same shelf wherever you're standing.
-            <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] [&>article]:w-full">
-              {movies.map((movie) => (
-                <PosterCard
-                  key={movie.id}
-                  movie={movie}
-                  rating={ratings.get(movie.id) ?? null}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </main>
-    </AppShell>
+        {movies.length === 0 ? (
+          <section className="mt-10">
+            <h2 className="text-xl font-bold text-bone">{empty.heading}</h2>
+            <p className="mt-2 max-w-md leading-relaxed text-bone-soft">{empty.body}</p>
+            <Link href="/" className="btn btn-primary mt-6">
+              Browse the catalog
+            </Link>
+          </section>
+        ) : (
+          // The overview's grid, down to the width override: a shelf of your
+          // films should be the same shelf wherever you're standing.
+          <div className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] [&>article]:w-full">
+            {movies.map((movie) => (
+              <PosterCard
+                key={movie.id}
+                movie={movie}
+                rating={ratings.get(movie.id) ?? null}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

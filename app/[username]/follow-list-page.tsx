@@ -2,7 +2,6 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AppShell } from "@/app/components/app-shell";
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
 import { FollowListRow } from "@/app/components/follow-list-row";
@@ -71,8 +70,7 @@ export async function FollowListPage({
         };
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
+    <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
         {isOwner ? (
           <ProfileSidebar
             displayName={name}
@@ -201,6 +199,5 @@ export async function FollowListPage({
           )}
         </div>
       </main>
-    </AppShell>
-  );
+    );
 }

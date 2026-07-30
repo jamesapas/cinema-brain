@@ -2,7 +2,6 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AppShell } from "@/app/components/app-shell";
 import { PostCard } from "@/app/components/post-card";
 import { getViewer } from "@/lib/auth/viewer";
 import { getComments, getPost } from "@/lib/social/queries";
@@ -39,28 +38,26 @@ export default async function PostPage({ params }: PageProps) {
   const comments = await getComments(supabase, post.id, viewer?.id ?? null, post.author.id);
 
   return (
-    <AppShell viewer={viewer}>
-      <main className="page-container flex-1 pt-28 pb-24">
-        <div className="max-w-2xl">
-          <Link
-            href="/feed"
-            className="meta inline-flex items-center gap-1.5 transition-colors hover:text-lamp"
-          >
-            <Icon icon="lucide:arrow-left" width={15} height={15} aria-hidden />
-            Back to the feed
-          </Link>
+    <main className="page-container flex-1 pt-28 pb-24">
+      <div className="max-w-2xl">
+        <Link
+          href="/feed"
+          className="meta inline-flex items-center gap-1.5 transition-colors hover:text-lamp"
+        >
+          <Icon icon="lucide:arrow-left" width={15} height={15} aria-hidden />
+          Back to the feed
+        </Link>
 
-          <div className="mt-4">
-            <PostCard
-              // A permalink is the post as its author wrote it, never as
-              // somebody's repost — the entry wrapper is the feed's idea.
-              entry={{ key: post.id, post, repostedBy: null, at: post.createdAt }}
-              viewerId={viewer?.id ?? null}
-              initialComments={comments}
-            />
-          </div>
+        <div className="mt-4">
+          <PostCard
+            // A permalink is the post as its author wrote it, never as
+            // somebody's repost — the entry wrapper is the feed's idea.
+            entry={{ key: post.id, post, repostedBy: null, at: post.createdAt }}
+            viewerId={viewer?.id ?? null}
+            initialComments={comments}
+          />
         </div>
-      </main>
-    </AppShell>
+      </div>
+    </main>
   );
 }

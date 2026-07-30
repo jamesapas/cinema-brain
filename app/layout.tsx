@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 
+import { AppShell } from "@/app/components/app-shell";
 import { NavigationProgressBar } from "@/app/components/navigation-progress";
+import { getViewer } from "@/lib/auth/viewer";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 import "./globals.css";
 
@@ -39,11 +42,14 @@ export const metadata: Metadata = {
   description: "Ask for a film. The catalog answers.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = await createServerSupabase();
+  const viewer = await getViewer(supabase);
+
   return (
     <html
       lang="en"
@@ -51,7 +57,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <NavigationProgressBar />
-        {children}
+        <AppShell viewer={viewer}>{children}</AppShell>
       </body>
     </html>
   );
