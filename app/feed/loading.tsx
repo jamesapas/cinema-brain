@@ -61,7 +61,7 @@ export default function Loading() {
 
       <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
         <div>
-          <div className="skeleton h-10 w-full rounded-full" />
+          <div className="skeleton h-11 w-full rounded-lg" />
         </div>
         <div className="mt-8 space-y-4">
           <div className="skeleton h-4 w-24 rounded-md" />

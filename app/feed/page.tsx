@@ -130,37 +130,40 @@ function SuggestionRow({
 }) {
   return (
     <li>
-      <div className="flex items-start gap-3">
-        <Link href={`/${person.username}`} className="shrink-0">
-          <Avatar
-            url={avatarUrl(person.avatar_path)}
-            initials={initialsFor(person.display_name, person.username)}
-            size={38}
-          />
-        </Link>
-
-        <div className="min-w-0 flex-1">
-          <Link href={`/${person.username}`} className="block min-w-0">
-            <p className="truncate text-sm font-semibold text-bone hover:text-bone/80 transition-colors">
-              {displayNameFor(person.display_name, person.username)}
-            </p>
-            <p className="meta truncate !text-xs text-bone-dim">@{person.username}</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href={`/${person.username}`} className="shrink-0">
+            <Avatar
+              url={avatarUrl(person.avatar_path)}
+              initials={initialsFor(person.display_name, person.username)}
+              size={36}
+            />
           </Link>
 
-          {person.bio && (
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-bone-soft">
-              {person.bio}
-            </p>
-          )}
+          <div className="min-w-0 flex-1">
+            <Link href={`/${person.username}`} className="block min-w-0">
+              <p className="truncate text-sm font-semibold text-bone hover:text-bone/80 transition-colors leading-snug">
+                {displayNameFor(person.display_name, person.username)}
+              </p>
+              <p className="meta truncate !text-xs text-bone-dim leading-snug">@{person.username}</p>
+            </Link>
 
-          <div className="mt-2">
-            <FollowButton
-              targetId={person.id}
-              targetUsername={person.username}
-              initialFollowing={false}
-            />
+            {person.bio && (
+              <p className="mt-0.5 line-clamp-1 text-xs text-bone-soft">
+                {person.bio}
+              </p>
+            )}
           </div>
         </div>
+
+        {showFollow && (
+          <FollowButton
+            targetId={person.id}
+            targetUsername={person.username}
+            initialFollowing={false}
+            compact
+          />
+        )}
       </div>
     </li>
   );
@@ -174,7 +177,7 @@ function SuggestionRow({
  * `getFeedCandidates` hydrates up to 150 posts across three async rounds
  * (fetch → authors+actions → reposters) and `getFeedAffinity` calls Pinecone
  * to score film adjacency. Isolating them here means the header, ordering
- * note, and composer are never blocked by either call.
+ * note, and composer are never delayed by either call.
  */
 async function FeedEntries({
   viewerId,
@@ -296,7 +299,7 @@ function PeopleSidebarSkeleton() {
   return (
     <>
       <div>
-        <div className="skeleton h-10 w-full rounded-full" />
+        <div className="skeleton h-11 w-full rounded-lg" />
       </div>
       <div className="mt-8 space-y-4">
         <div className="skeleton h-4 w-24 rounded-md" />

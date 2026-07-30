@@ -10,11 +10,13 @@ export function FollowButton({
   targetId,
   targetUsername,
   initialFollowing,
+  compact,
   className,
 }: {
   targetId: string;
   targetUsername: string;
   initialFollowing: boolean;
+  compact?: boolean;
   className?: string | ((following: boolean) => string);
 }) {
   const signedIn = useSignedIn();
@@ -67,7 +69,13 @@ export function FollowButton({
   const computedClassName =
     typeof className === "function"
       ? className(following)
-      : className ?? `w-full ${following ? "btn btn-quiet" : "btn btn-primary"}`;
+      : className
+        ? `${className} ${following ? "btn btn-quiet" : "btn btn-primary"}`
+        : compact
+          ? `h-7 px-3.5 text-xs rounded-full font-semibold transition-colors shrink-0 ${
+              following ? "btn btn-quiet" : "btn btn-primary"
+            }`
+          : `w-full ${following ? "btn btn-quiet" : "btn btn-primary"}`;
 
   return (
     <button
