@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 
+import { NavigationProgressBar } from "@/app/components/navigation-progress";
+
 import "./globals.css";
 
 /**
@@ -48,6 +50,7 @@ export default function RootLayout({
       className={`${inter.variable} ${plexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        <NavigationProgressBar />
         {children}
       </body>
     </html>
