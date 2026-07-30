@@ -36,8 +36,6 @@ export default async function PeoplePage({
     searchProfiles(supabase, query, RESULT_LIMIT),
   ]);
 
-  // Which of the results the viewer already follows, so the buttons open in the
-  // right state. One read for the page rather than one per row.
   const followingIds = viewer
     ? await getFollowingIds(supabase, viewer.id)
     : new Set<string>();

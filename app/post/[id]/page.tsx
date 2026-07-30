@@ -28,12 +28,12 @@ type PageProps = { params: Promise<{ id: string }> };
 export default async function PostPage({ params }: PageProps) {
   const { id } = await params;
   const supabase = await createServerSupabase();
-  const viewer = await getViewer(supabase);
 
-  const post = await getPost(supabase, id, viewer?.id ?? null);
-  // A deleted post and an id that never existed are the same 404: there is
-  // nothing to say about either, and distinguishing them says something about
-  // what used to be here.
+  const [viewer, post] = await Promise.all([
+    getViewer(supabase),
+    getPost(supabase, id, null),
+  ]);
+
   if (!post) notFound();
 
   const comments = await getComments(supabase, post.id, viewer?.id ?? null, post.author.id);
