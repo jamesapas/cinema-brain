@@ -23,15 +23,11 @@ import { MIN_SEARCH_LENGTH, type ProfileResult } from "@/lib/profiles/search";
  * you close it and carry on reading.
  */
 
-/** Enough to recognise a name in; the rest is what /people is for. */
-const SHOWN = 6;
-
 type PeopleResponse = { people?: ProfileResult[]; hasMore?: boolean; error?: string };
 
 export function PeopleSearch() {
   const [query, setQuery] = useState("");
   const [people, setPeople] = useState<ProfileResult[]>([]);
-  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -54,7 +50,6 @@ export function PeopleSearch() {
 
     if (next.trim().length < MIN_SEARCH_LENGTH) {
       setPeople([]);
-      setHasMore(false);
       setError(null);
       setLoading(false);
     }
@@ -78,7 +73,6 @@ export function PeopleSearch() {
         if (!response.ok) throw new Error(payload.error ?? "Search failed.");
 
         setPeople(payload.people ?? []);
-        setHasMore(Boolean(payload.hasMore));
         setError(null);
       } catch (cause) {
         if (cause instanceof DOMException && cause.name === "AbortError") return;
@@ -107,8 +101,6 @@ export function PeopleSearch() {
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
-
-  const shown = people.slice(0, SHOWN);
 
   return (
     <div ref={rootRef} className="relative">
@@ -146,29 +138,17 @@ export function PeopleSearch() {
             <p role="alert" className="px-4 py-5 text-sm text-lamp">
               {error}
             </p>
-          ) : shown.length === 0 ? (
+          ) : people.length === 0 ? (
             <p className="meta px-4 py-5">
               {loading ? "Searching…" : `Nobody here matches “${term}”.`}
             </p>
           ) : (
             <ul className="py-1.5">
-              {shown.map((person) => (
+              {people.map((person) => (
                 <li key={person.id}>
                   <PersonRow person={person} onNavigate={() => setOpen(false)} />
                 </li>
               ))}
-
-              {(hasMore || people.length > SHOWN) && (
-                <li className="border-t border-ink-line">
-                  <Link
-                    href={`/people?q=${encodeURIComponent(term)}`}
-                    onClick={() => setOpen(false)}
-                    className="meta block px-4 py-3 transition-colors hover:text-lamp"
-                  >
-                    See everyone matching “{term}”
-                  </Link>
-                </li>
-              )}
             </ul>
           )}
         </div>
