@@ -14,6 +14,8 @@ import {
 } from "@/lib/movies/catalog";
 import { createServerSupabase } from "@/lib/supabase/server";
 
+import Loading from "./loading";
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 /** The genre shelf follows the user's taste when there is any to follow. */
@@ -54,6 +56,14 @@ export default async function Home({
     redirect(`/auth/callback?code=${encodeURIComponent(code)}`);
   }
 
+  return (
+    <Suspense fallback={<Loading />}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+async function HomeContent() {
   const supabase = await createServerSupabase();
 
   // Trending and Top Rated are served from Next.js's `unstable_cache` and cost

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { cache } from "react";
+import { cache, Suspense } from "react";
 
 import { CastRow } from "@/app/components/cast-row";
 import { CarouselRow } from "@/app/components/carousel-row";
@@ -21,6 +21,8 @@ import {
 import { backdropUrl } from "@/lib/movies/images";
 import { getViewer } from "@/lib/auth/viewer";
 import { createServerSupabase } from "@/lib/supabase/server";
+
+import Loading from "./loading";
 
 /**
  * One film, on its own URL.
@@ -58,11 +60,18 @@ export default async function MoviePage({ params }: PageProps) {
   const id = parseMovieId((await params).id);
   if (id === null) notFound();
 
+  return (
+    <Suspense fallback={<Loading />}>
+      <MovieContent id={id} />
+    </Suspense>
+  );
+}
+
+async function MovieContent({ id }: { id: number }) {
   const supabase = await createServerSupabase();
 
   // Collapsed all queries into the primary Promise.all so movie data, rating state,
   // trailer key, cast, and related shelf resolve concurrently in parallel.
-  // This guarantees a single, instant transition from loading.tsx to full page.
   const [movie, viewer, ratingsRaw, trailerKey, cast, related] = await Promise.all([
     loadMovie(id),
     getViewer(supabase),
@@ -146,5 +155,3 @@ export default async function MoviePage({ params }: PageProps) {
     </main>
   );
 }
-
-

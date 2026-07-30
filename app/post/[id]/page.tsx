@@ -1,11 +1,14 @@
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { PostCard } from "@/app/components/post-card";
 import { getViewer } from "@/lib/auth/viewer";
 import { getComments, getPost } from "@/lib/social/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
+
+import Loading from "./loading";
 
 /**
  * One post, on its own.
@@ -26,6 +29,15 @@ type PageProps = { params: Promise<{ id: string }> };
 
 export default async function PostPage({ params }: PageProps) {
   const { id } = await params;
+
+  return (
+    <Suspense fallback={<Loading />}>
+      <PostContent id={id} />
+    </Suspense>
+  );
+}
+
+async function PostContent({ id }: { id: string }) {
   const supabase = await createServerSupabase();
   const viewer = await getViewer(supabase);
 
