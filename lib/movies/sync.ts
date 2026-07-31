@@ -95,12 +95,23 @@ async function upsertBatch(
   supabase: SupabaseClient<Database>,
   rows: MovieInsert[],
 ): Promise<{ needsEmbedding: number; inserted: number }> {
+  if (rows.length === 0) {
+    return { needsEmbedding: 0, inserted: 0 };
+  }
+
+  // Deduplicate rows by id to prevent Postgres "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  const uniqueRowsMap = new Map<number, MovieInsert>();
+  for (const row of rows) {
+    uniqueRowsMap.set(row.id, row);
+  }
+  const uniqueRows = Array.from(uniqueRowsMap.values());
+
   const { data: existing, error: selectError } = await supabase
     .from("movies")
     .select("id, embedding_input_hash, embedded_at")
     .in(
       "id",
-      rows.map((row) => row.id),
+      uniqueRows.map((row) => row.id),
     );
 
   if (selectError) {
@@ -112,7 +123,7 @@ async function upsertBatch(
   const stale: MovieInsert[] = [];
   const fresh: MovieInsert[] = [];
 
-  for (const row of rows) {
+  for (const row of uniqueRows) {
     const prior = existingById.get(row.id);
     const alreadyEmbedded =
       prior != null &&
@@ -140,7 +151,7 @@ async function upsertBatch(
 
   return {
     needsEmbedding: stale.length,
-    inserted: rows.length - existingById.size,
+    inserted: uniqueRows.length - existingById.size,
   };
 }
 
@@ -482,11 +493,15 @@ export async function syncTrending(
 
   // 1. Fetch trending movie IDs in rank order
   const ranked: { id: number; rank: number }[] = [];
+  const seenIds = new Set<number>();
 
   for (let page = 1; page <= pages; page++) {
     const trending = await getTrendingMovies(page);
     for (const movie of trending.results) {
-      ranked.push({ id: movie.id, rank: ranked.length + 1 });
+      if (!seenIds.has(movie.id)) {
+        seenIds.add(movie.id);
+        ranked.push({ id: movie.id, rank: ranked.length + 1 });
+      }
     }
     onProgress(`trending page ${page}/${pages}: ${trending.results.length} movies`);
   }
