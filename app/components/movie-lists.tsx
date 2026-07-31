@@ -115,9 +115,11 @@ type Variant = "overlay" | "hero" | "inline";
 export function ListButtons({
   movieId,
   variant = "overlay",
+  lists = ["watchlist", "favorite"],
 }: {
   movieId: number;
   variant?: Variant;
+  lists?: readonly ("watchlist" | "favorite")[];
 }) {
   return (
     <div
@@ -125,7 +127,7 @@ export function ListButtons({
         variant === "overlay" ? "flex flex-col gap-1.5" : "flex items-center gap-2"
       }
     >
-      {(["watchlist", "favorite"] as const).map((list) => (
+      {lists.map((list) => (
         <ListButton key={list} movieId={movieId} list={list} variant={variant} />
       ))}
     </div>

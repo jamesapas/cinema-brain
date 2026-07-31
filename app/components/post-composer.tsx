@@ -29,9 +29,6 @@ import { MAX_POST_LENGTH, MAX_POST_MOVIES } from "@/lib/social/posts";
 /** Enough to recognise the one you meant without becoming a second page. */
 const PICKER_RESULTS = 6;
 
-/** Where the character counter starts being worth showing. */
-const COUNTER_FROM = MAX_POST_LENGTH - 120;
-
 type SearchResponse = { movies?: MovieCard[]; error?: string };
 
 export function PostComposer({
@@ -214,6 +211,7 @@ function PostModal({
             ref={textareaRef}
             value={body}
             onChange={(event) => setBody(event.target.value)}
+            maxLength={MAX_POST_LENGTH}
             rows={3}
             placeholder={`What have you been watching, ${displayName.split(" ")[0]}?`}
             className="w-full resize-none bg-transparent text-base sm:text-lg leading-relaxed text-bone placeholder:text-bone-dim/70 focus:outline-none focus-visible:outline-none composer-input"
@@ -265,9 +263,13 @@ function PostModal({
             </button>
 
             <div className="ml-auto flex items-center gap-3">
-              {trimmed.length > COUNTER_FROM && (
-                <span className={`meta tabular-nums text-xs ${tooLong ? "!text-ember font-bold" : ""}`}>
-                  {MAX_POST_LENGTH - trimmed.length}
+              {trimmed.length > 0 && (
+                <span
+                  className={`meta tabular-nums text-xs ${
+                    trimmed.length >= MAX_POST_LENGTH - 50 ? "!text-ember font-semibold" : "text-bone-dim/70"
+                  }`}
+                >
+                  {trimmed.length}/{MAX_POST_LENGTH}
                 </span>
               )}
 

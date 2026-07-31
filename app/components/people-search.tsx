@@ -128,7 +128,8 @@ export function PeopleSearch() {
           placeholder="Find people"
           aria-label="Search people by name or handle"
           autoComplete="off"
-          className="h-11 w-full rounded-lg border border-ink-line bg-bone/8 pr-3 pl-11 text-sm text-bone transition-colors placeholder:text-bone-dim focus:border-lamp focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+          style={{ outline: "none", boxShadow: "none" }}
+          className="h-11 w-full rounded-lg border border-ink-line bg-bone/8 pr-3 pl-11 text-sm text-bone placeholder:text-bone-dim [&::-webkit-search-cancel-button]:hidden"
         />
       </div>
 

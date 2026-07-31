@@ -1,8 +1,7 @@
 /**
  * Shown while the feed route is loading.
  *
- * Matches the page's exact layout: composer pill, post card list, and 22rem right sidebar.
- * Header is omitted here so the site navigation stays intact without skeletonizing.
+ * Matches the page's exact layout: mobile top search bar, composer pill, post card list, and 22rem right sidebar on desktop.
  */
 export default function Loading() {
   return (
@@ -12,10 +11,17 @@ export default function Loading() {
           <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
         </header>
 
-        <div className="mt-6">
-          <div className="skeleton h-[50px] w-full rounded-full border border-ink-line" />
+        {/* Top search box on mobile */}
+        <div className="mt-6 lg:hidden">
+          <div className="skeleton h-[42px] w-full rounded-xl" />
         </div>
 
+        {/* Post composer */}
+        <div className="mt-6">
+          <div className="skeleton h-[52px] w-full rounded-full border border-ink-line" />
+        </div>
+
+        {/* Post list skeleton */}
         <div className="mt-6 divide-y divide-ink-line">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="py-5">
@@ -38,8 +44,15 @@ export default function Loading() {
                   </div>
 
                   {i % 2 === 0 && (
-                    <div className="pt-1">
-                      <div className="skeleton h-40 w-28 rounded-lg" />
+                    <div className="pt-1 flex gap-3 flex-nowrap">
+                      <div className="space-y-1.5 w-24 sm:w-28 shrink-0">
+                        <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+                        <div className="skeleton h-3 w-16 rounded-md" />
+                      </div>
+                      <div className="space-y-1.5 w-24 sm:w-28 shrink-0">
+                        <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+                        <div className="skeleton h-3 w-20 rounded-md" />
+                      </div>
                     </div>
                   )}
 
@@ -49,8 +62,9 @@ export default function Loading() {
                     <div className="skeleton h-6 w-16 rounded-full" />
                   </div>
 
-                  <div className="pt-2 border-l-2 border-ink-line pl-3.5">
-                    <div className="skeleton h-9 w-full rounded-lg" />
+                  <div className="pt-2 border-l-2 border-ink-line pl-3.5 flex items-center gap-2.5">
+                    <div className="skeleton size-7 shrink-0 rounded-full" />
+                    <div className="skeleton h-9 min-w-0 flex-1 rounded-lg" />
                   </div>
                 </div>
               </div>
@@ -59,14 +73,15 @@ export default function Loading() {
         </div>
       </div>
 
-      <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
+      {/* Right sidebar on desktop */}
+      <aside className="hidden lg:block lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
         <div>
           <div className="skeleton h-11 w-full rounded-lg" />
         </div>
         <div className="mt-8 space-y-4">
           <div className="skeleton h-4 w-24 rounded-md" />
           <div className="space-y-4 pt-1">
-            {[...Array(4)].map((_, i) => (
+            {[...Array(5)].map((_, i) => (
               <div key={i} className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="skeleton size-9 shrink-0 rounded-full" />

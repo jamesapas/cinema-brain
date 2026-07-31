@@ -42,7 +42,20 @@ export async function AppShell({
 
   return (
     <AuthOverlayProvider>
-      <SessionProvider signedIn={viewer !== null}>
+      <SessionProvider
+        signedIn={viewer !== null}
+        user={
+          viewer
+            ? {
+                id: viewer.id,
+                avatarUrl: viewer.avatarUrl,
+                initials: viewer.initials,
+                username: viewer.username,
+                displayName: viewer.displayName,
+              }
+            : null
+        }
+      >
         <MovieListsProvider membership={membership}>
           <ChatOverlayProvider>
             <SearchOverlayProvider>

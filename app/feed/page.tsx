@@ -50,6 +50,11 @@ export default async function FeedPage() {
           <h1 className="text-2xl font-bold text-bone sm:text-3xl">Feed</h1>
         </header>
 
+        {/* Top search box on mobile */}
+        <div className="mt-6 lg:hidden">
+          <PeopleSearch />
+        </div>
+
         <div className="mt-6">
           <PostComposer
             displayName={viewer?.displayName ?? "there"}
@@ -70,11 +75,8 @@ export default async function FeedPage() {
         </div>
       </div>
 
-      {/* Below the feed on a phone, beside it from lg up — a search box you
-          have to scroll past to reach the posts is a search box in the way.
-          The suggestions query is fast (one indexed read) and now resolves
-          independently of the Pinecone-heavy feed ranking. */}
-      <aside className="mt-10 lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
+      {/* Right sidebar on desktop */}
+      <aside className="hidden lg:block lg:sticky lg:top-28 lg:mt-0 lg:h-fit lg:self-start w-full">
         <Suspense fallback={<PeopleSidebarSkeleton />}>
           <PeopleSidebar
             viewerId={viewer?.id ?? null}
@@ -87,19 +89,7 @@ export default async function FeedPage() {
   );
 }
 
-/**
- * One line saying what the order means.
- *
- * A ranked feed that doesn't say it's ranked reads as a broken chronological
- * one the first time a two-hour-old post sits above a ten-minute-old one.
- */
-function orderingNote(signedIn: boolean, following: number): string {
-  if (!signedIn) return "What people are saying. Sign in and it reorders around your taste.";
-  if (following === 0) {
-    return "Ranked by the films you rate. Follow a few people and they'll rise to the top.";
-  }
-  return "Ranked by who you follow, the films you rate, and what's just been posted.";
-}
+
 
 function EmptyFeed({ signedIn }: { signedIn: boolean }) {
   return (
@@ -121,29 +111,33 @@ function EmptyFeed({ signedIn }: { signedIn: boolean }) {
 function SuggestionRow({
   person,
   showFollow,
+  className = "",
 }: {
   person: ProfileResult;
   showFollow: boolean;
+  className?: string;
 }) {
   return (
-    <li>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href={`/${person.username}`} className="shrink-0">
-            <Avatar
-              url={avatarUrl(person.avatar_path)}
-              initials={initialsFor(person.display_name, person.username)}
-              size={36}
-            />
-          </Link>
+    <li className={className}>
+      <div className="group/row flex items-center justify-between gap-3 p-2 -m-2 rounded-xl transition-colors hover:bg-bone/5">
+        <Link
+          href={`/${person.username}`}
+          className="flex items-center gap-3 min-w-0 flex-1"
+        >
+          <Avatar
+            url={avatarUrl(person.avatar_path)}
+            initials={initialsFor(person.display_name, person.username)}
+            size={36}
+            className="shrink-0"
+          />
 
           <div className="min-w-0 flex-1">
-            <Link href={`/${person.username}`} className="block min-w-0">
-              <p className="truncate text-sm font-semibold text-bone hover:text-bone/80 transition-colors leading-snug">
-                {displayNameFor(person.display_name, person.username)}
-              </p>
-              <p className="meta truncate !text-xs text-bone-dim leading-snug">@{person.username}</p>
-            </Link>
+            <p className="truncate text-sm font-semibold text-bone leading-snug">
+              {displayNameFor(person.display_name, person.username)}
+            </p>
+            <p className="meta truncate !text-xs text-bone-dim leading-snug">
+              @{person.username}
+            </p>
 
             {person.bio && (
               <p className="mt-0.5 line-clamp-1 text-xs text-bone-soft">
@@ -151,15 +145,17 @@ function SuggestionRow({
               </p>
             )}
           </div>
-        </div>
+        </Link>
 
         {showFollow && (
-          <FollowButton
-            targetId={person.id}
-            targetUsername={person.username}
-            initialFollowing={false}
-            compact
-          />
+          <div className="shrink-0 relative z-10">
+            <FollowButton
+              targetId={person.id}
+              targetUsername={person.username}
+              initialFollowing={false}
+              compact
+            />
+          </div>
         )}
       </div>
     </li>
@@ -170,11 +166,6 @@ function SuggestionRow({
 
 /**
  * The ranked post list, streamed independently.
- *
- * `getFeedCandidates` hydrates up to 150 posts across three async rounds
- * (fetch → authors+actions → reposters) and `getFeedAffinity` calls Pinecone
- * to score film adjacency. Isolating them here means the header, ordering
- * note, and composer are never delayed by either call.
  */
 async function FeedEntries({
   viewerId,
@@ -196,10 +187,6 @@ async function FeedEntries({
 
 /**
  * The people rail (search box + suggestions), streamed independently.
- *
- * `getSuggestedProfiles` is a single indexed read. It was previously blocked
- * by the same `Promise.all` as the Pinecone-heavy feed ranking, adding
- * 400–600ms to what is actually a fast query. Now it resolves on its own.
  */
 async function PeopleSidebar({
   viewerId,
@@ -225,7 +212,7 @@ async function PeopleSidebar({
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-bone-soft">Suggestions</h2>
         {suggestions.length > 0 ? (
-          <ul className="mt-3 flex flex-col gap-4">
+          <ul className="mt-3 flex flex-col gap-3.5">
             {suggestions.map((person) => (
               <SuggestionRow
                 key={person.id}
@@ -270,8 +257,15 @@ function FeedListSkeleton() {
               </div>
 
               {i % 2 === 0 && (
-                <div className="pt-1">
-                  <div className="skeleton h-40 w-28 rounded-lg" />
+                <div className="pt-1 flex gap-3 flex-nowrap">
+                  <div className="space-y-1.5 w-24 sm:w-28 shrink-0">
+                    <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+                    <div className="skeleton h-3 w-16 rounded-md" />
+                  </div>
+                  <div className="space-y-1.5 w-24 sm:w-28 shrink-0">
+                    <div className="skeleton aspect-[2/3] w-full rounded-lg" />
+                    <div className="skeleton h-3 w-20 rounded-md" />
+                  </div>
                 </div>
               )}
 
@@ -281,8 +275,9 @@ function FeedListSkeleton() {
                 <div className="skeleton h-6 w-16 rounded-full" />
               </div>
 
-              <div className="pt-2 border-l-2 border-ink-line pl-3.5">
-                <div className="skeleton h-9 w-full rounded-lg" />
+              <div className="pt-2 border-l-2 border-ink-line pl-3.5 flex items-center gap-2.5">
+                <div className="skeleton size-7 shrink-0 rounded-full" />
+                <div className="skeleton h-9 min-w-0 flex-1 rounded-lg" />
               </div>
             </div>
           </div>
@@ -301,7 +296,7 @@ function PeopleSidebarSkeleton() {
       <div className="mt-8 space-y-4">
         <div className="skeleton h-4 w-24 rounded-md" />
         <div className="space-y-4 pt-1">
-          {[...Array(4)].map((_, i) => (
+          {[...Array(5)].map((_, i) => (
             <div key={i} className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="skeleton size-9 shrink-0 rounded-full" />

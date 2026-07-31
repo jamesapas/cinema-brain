@@ -56,6 +56,13 @@ body {
   font-optical-sizing: auto;
 }
 
+/* Globally disable default focus outline / focus ring on click for all inputs */
+input:focus,
+input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Headings are set tight; Inter's default tracking is loose at display sizes. */
 h1,
 h2,

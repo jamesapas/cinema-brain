@@ -18,20 +18,46 @@ import { useAuthOverlay } from "@/app/components/auth-overlay";
  * Defaults to false, so a component used outside the provider treats the
  * visitor as signed out rather than assuming the generous case.
  */
-const SessionContext = createContext(false);
+export type SessionUser = {
+  id: string;
+  avatarUrl: string | null;
+  initials: string;
+  username?: string | null;
+  displayName?: string;
+};
+
+type SessionContextValue = {
+  signedIn: boolean;
+  user: SessionUser | null;
+};
+
+const SessionContext = createContext<SessionContextValue>({
+  signedIn: false,
+  user: null,
+});
 
 export function SessionProvider({
   signedIn,
+  user = null,
   children,
 }: {
   signedIn: boolean;
+  user?: SessionUser | null;
   children: React.ReactNode;
 }) {
-  return <SessionContext.Provider value={signedIn}>{children}</SessionContext.Provider>;
+  return (
+    <SessionContext.Provider value={{ signedIn, user }}>
+      {children}
+    </SessionContext.Provider>
+  );
 }
 
 export function useSignedIn() {
-  return useContext(SessionContext);
+  return useContext(SessionContext).signedIn;
+}
+
+export function useSessionUser() {
+  return useContext(SessionContext).user;
 }
 
 /**

@@ -15,7 +15,7 @@ import {
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
 import { PostMovies } from "@/app/components/post-movies";
-import { useSignIn, useSignedIn } from "@/app/components/session";
+import { useSignIn, useSignedIn, useSessionUser } from "@/app/components/session";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import {
   MAX_COMMENT_LENGTH,
@@ -160,11 +160,11 @@ export function PostCard({
           <header className="flex items-center gap-x-2 flex-wrap min-w-0">
             <Link
               href={`/${post.author.username}`}
-              className="truncate font-semibold text-bone transition-colors hover:text-bone/80"
+              className="truncate font-semibold text-bone hover:underline"
             >
               {displayNameFor(post.author.display_name, post.author.username)}
             </Link>
-            <Link href={`/${post.author.username}`} className="meta truncate !text-xs text-bone-dim hover:text-bone">
+            <Link href={`/${post.author.username}`} className="meta truncate !text-xs text-bone-dim hover:underline">
               @{post.author.username}
             </Link>
             <span aria-hidden className="text-bone-dim/40 text-xs">
@@ -542,13 +542,13 @@ function CommentRow({
         <div className="flex items-center gap-x-1.5 flex-wrap">
           <Link
             href={`/${comment.author.username}`}
-            className="truncate text-sm font-semibold text-bone transition-colors hover:text-bone/80"
+            className="truncate text-sm font-semibold text-bone hover:underline"
           >
             {displayNameFor(comment.author.display_name, comment.author.username)}
           </Link>
           <Link
             href={`/${comment.author.username}`}
-            className="meta truncate !text-xs text-bone-dim transition-colors hover:text-bone"
+            className="meta truncate !text-xs text-bone-dim hover:underline"
           >
             @{comment.author.username}
           </Link>
@@ -608,6 +608,7 @@ function CommentComposer({
 }) {
   const signedIn = useSignedIn();
   const signIn = useSignIn();
+  const user = useSessionUser();
 
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -616,13 +617,16 @@ function CommentComposer({
 
   if (!signedIn) {
     return (
-      <button
-        type="button"
-        onClick={() => signIn("To comment on this post")}
-        className="meta py-2 transition-colors hover:text-bone text-xs"
-      >
-        Sign in to comment
-      </button>
+      <div className="flex items-center gap-2.5 pt-1">
+        <Avatar url={null} initials="?" size={28} className="shrink-0 opacity-60" />
+        <button
+          type="button"
+          onClick={() => signIn("To comment on this post")}
+          className="meta py-2 transition-colors hover:text-bone text-xs"
+        >
+          Sign in to comment
+        </button>
+      </div>
     );
   }
 
@@ -645,7 +649,13 @@ function CommentComposer({
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 pt-1">
+    <form onSubmit={submit} className="flex items-center gap-2.5 pt-1">
+      <Avatar
+        url={user?.avatarUrl ?? null}
+        initials={user?.initials ?? "?"}
+        size={28}
+        className="shrink-0"
+      />
       <input
         ref={inputRef}
         type="text"
@@ -656,6 +666,19 @@ function CommentComposer({
         aria-label="Write a comment"
         className="h-9 min-w-0 flex-1 rounded-lg border border-ink-line bg-bone/8 px-3.5 text-xs sm:text-sm text-bone transition-colors placeholder:text-bone-dim focus:outline-none focus-visible:outline-none composer-input"
       />
+
+      {body.length > 0 && (
+        <span
+          className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
+            body.length >= MAX_COMMENT_LENGTH - 20
+              ? "!text-ember font-semibold"
+              : "text-bone-dim/70"
+          }`}
+        >
+          {body.length}/{MAX_COMMENT_LENGTH}
+        </span>
+      )}
+
       <button
         type="submit"
         disabled={body.trim().length === 0 || pending}
