@@ -62,7 +62,7 @@ export function SiteHeader({
         <KinoLogo />
 
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <NavLink href="/" icon="lucide:home" label="Home" />
+          <NavLink href="/" icon="lucide:home" label="Home" hideOnMobile />
 
           {/* Public like the catalog, so it's here signed out too — the feed
               is something to read before it's something to write in. */}
@@ -180,10 +180,12 @@ function NavLink({
   href,
   icon,
   label,
+  hideOnMobile = false,
 }: {
   href: string;
   icon: string;
   label: string;
+  hideOnMobile?: boolean;
 }) {
   const pathname = usePathname();
   const current = pathname === href;
@@ -193,7 +195,9 @@ function NavLink({
       href={href}
       aria-label={label}
       aria-current={current ? "page" : undefined}
-      className="grid h-10 w-10 place-items-center rounded-full text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone sm:flex sm:w-auto sm:gap-2.5 sm:px-3 sm:text-sm sm:font-medium"
+      className={`${
+        hideOnMobile ? "hidden sm:flex" : "grid sm:flex"
+      } h-10 w-10 place-items-center rounded-full text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone sm:w-auto sm:gap-2.5 sm:px-3 sm:text-sm sm:font-medium`}
     >
       <Icon icon={icon} width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
       <span className="hidden sm:inline">{label}</span>
