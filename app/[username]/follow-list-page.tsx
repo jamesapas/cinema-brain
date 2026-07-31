@@ -7,7 +7,7 @@ import { FollowButton } from "@/app/components/follow-button";
 import { FollowListRow } from "@/app/components/follow-list-row";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { getViewer } from "@/lib/auth/viewer";
-import { getRatedMovies } from "@/lib/movies/catalog";
+import { getRatingStats } from "@/lib/movies/catalog";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import {
   getFollowCounts,
@@ -16,7 +16,7 @@ import {
   getFollowingIds,
 } from "@/lib/profiles/follows";
 import { getProfileByUsername } from "@/lib/profiles/queries";
-import { formatWatchTime, tasteStats } from "@/lib/profiles/stats";
+import { formatWatchTime } from "@/lib/profiles/stats";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 /** Short form for the visitor rail's tight stats — "Jul 2026", not "July 2026". */
@@ -41,17 +41,25 @@ export async function FollowListPage({
   const profile = isOwner ? viewer!.profile : await getProfileByUsername(supabase, username);
   if (!profile) notFound();
 
-  const [people, counts, viewerFollowingIds, rated] = await Promise.all([
+  const [people, counts, viewerFollowingIds, ratingStatsRes] = await Promise.all([
     kind === "followers" ? getFollowers(supabase, profile.id) : getFollowing(supabase, profile.id),
     getFollowCounts(supabase, profile.id),
     viewer ? getFollowingIds(supabase, viewer.id) : Promise.resolve(new Set<string>()),
-    isOwner ? Promise.resolve([]) : getRatedMovies(supabase, profile.id),
+    isOwner ? Promise.resolve(null) : getRatingStats(supabase, profile.id),
   ]);
 
   const name = isOwner ? viewer!.displayName : displayNameFor(profile.display_name, profile.username);
   const initials = isOwner ? viewer!.initials : initialsFor(profile.display_name, profile.username);
   const picture = isOwner ? viewer!.avatarUrl : avatarUrl(profile.avatar_path);
-  const stats = tasteStats(rated);
+  const stats = ratingStatsRes?.stats ?? {
+    count: 0,
+    averageStars: null,
+    totalMinutes: 0,
+    distribution: [],
+    topGenres: [],
+    highest: null,
+    lowest: null,
+  };
   const joined = JOINED_FORMAT.format(new Date(profile.created_at));
 
   const empty =

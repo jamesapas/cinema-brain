@@ -8,11 +8,11 @@ import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { RatedFilmsGrid } from "@/app/components/rated-films-grid";
 import { SignInPrompt } from "@/app/components/sign-in-prompt";
 import { getViewer } from "@/lib/auth/viewer";
-import { getRatedMovies } from "@/lib/movies/catalog";
+import { getRatingStats, getUserNotes } from "@/lib/movies/catalog";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import { getFollowCounts, getFollowingIds, isFollowing } from "@/lib/profiles/follows";
 import { getProfileByUsername } from "@/lib/profiles/queries";
-import { tasteStats, type StarBucket } from "@/lib/profiles/stats";
+import { type StarBucket } from "@/lib/profiles/stats";
 import { MIN_RATED_FOR_SUMMARY, summaryIsStale } from "@/lib/profiles/taste-summary";
 import type { FeedEntry } from "@/lib/social/posts";
 import { getUserEntries } from "@/lib/social/queries";
@@ -64,21 +64,24 @@ export default async function UsernamePage({ params }: PageProps) {
   // attribute reposters) and is the slowest part of the page. It is fetched
   // inside `ProfilePosts` behind a Suspense boundary so the sidebar, rating
   // spread, and film grid can appear as soon as this faster trio resolves.
-  const [rated, counts, viewerFollows] = await Promise.all([
-    getRatedMovies(supabase, profile.id),
+  const [{ stats, fingerprint, topGenres }, counts, viewerFollows, notes] = await Promise.all([
+    getRatingStats(supabase, profile.id),
     getFollowCounts(supabase, profile.id),
     viewer && !isOwner ? isFollowing(supabase, viewer.id, profile.id) : Promise.resolve(false),
+    isOwner ? getUserNotes(supabase, profile.id) : Promise.resolve([]),
   ]);
 
   const name = isOwner ? viewer!.displayName : displayNameFor(profile.display_name, profile.username);
   const initials = isOwner ? viewer!.initials : initialsFor(profile.display_name, profile.username);
   const picture = isOwner ? viewer!.avatarUrl : avatarUrl(profile.avatar_path);
-  const stats = tasteStats(rated);
   const joined = JOINED_FORMAT.format(new Date(profile.created_at));
-  const notes = isOwner ? rated.filter((entry) => entry.notes) : [];
   // Free to compute — a hash of rows this render already fetched. Only the
   // owner's browser acts on it, so deciding it here costs a visitor nothing.
-  const stale = summaryIsStale(rated, profile.taste_summary_key, profile.taste_summary_at);
+  const stale = summaryIsStale(
+    { count: stats.count, fingerprint },
+    profile.taste_summary_key,
+    profile.taste_summary_at,
+  );
 
   return (
     <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
@@ -136,9 +139,11 @@ export default async function UsernamePage({ params }: PageProps) {
         ) : (
           <>
             <RatedFilmsGrid
-              rated={rated}
+              userId={profile.id}
               heading={isOwner ? "Films you’ve rated" : "Films rated"}
               readOnly={!isOwner}
+              totalCount={stats.count}
+              availableGenres={topGenres}
             />
 
             {notes.length > 0 && (

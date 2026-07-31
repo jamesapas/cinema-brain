@@ -5,11 +5,10 @@ import { Suspense } from "react";
 import { PostList } from "@/app/components/post-list";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
 import { getViewer } from "@/lib/auth/viewer";
-import { getRatedMovies } from "@/lib/movies/catalog";
+import { getRatingStats } from "@/lib/movies/catalog";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import { getFollowCounts, getFollowingIds, isFollowing } from "@/lib/profiles/follows";
 import { getProfileByUsername } from "@/lib/profiles/queries";
-import { tasteStats } from "@/lib/profiles/stats";
 import { getUserEntries } from "@/lib/social/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -31,8 +30,8 @@ export default async function UserPostsPage({ params }: PageProps) {
   const profile = isOwner ? viewer!.profile : await getProfileByUsername(supabase, username);
   if (!profile) notFound();
 
-  const [rated, counts, viewerFollows] = await Promise.all([
-    getRatedMovies(supabase, profile.id),
+  const [{ stats }, counts, viewerFollows] = await Promise.all([
+    getRatingStats(supabase, profile.id),
     getFollowCounts(supabase, profile.id),
     viewer && !isOwner ? isFollowing(supabase, viewer.id, profile.id) : Promise.resolve(false),
   ]);
@@ -40,7 +39,6 @@ export default async function UserPostsPage({ params }: PageProps) {
   const name = isOwner ? viewer!.displayName : displayNameFor(profile.display_name, profile.username);
   const initials = isOwner ? viewer!.initials : initialsFor(profile.display_name, profile.username);
   const picture = isOwner ? viewer!.avatarUrl : avatarUrl(profile.avatar_path);
-  const stats = tasteStats(rated);
   const joined = JOINED_FORMAT.format(new Date(profile.created_at));
 
   return (

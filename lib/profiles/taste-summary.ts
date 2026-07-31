@@ -84,7 +84,7 @@ Warm, but not flattering, and never generic. No "clearly loves cinema", no "impe
  * whatever else changed on the account. Order-independent by construction, so
  * re-sorting the query never invalidates a good summary.
  */
-export function tasteFingerprint(rated: RatedMovie[]): string {
+export function tasteFingerprint(rated: Array<{ movie: { id: number }; rating: number }>): string {
   const pairs = rated
     .map((entry) => `${entry.movie.id}:${entry.rating}`)
     .sort()
@@ -101,14 +101,18 @@ export function tasteFingerprint(rated: RatedMovie[]): string {
   return `${rated.length}-${(hash >>> 0).toString(16)}`;
 }
 
-/** Whether a stored summary still describes the ratings the user has now. */
 export function summaryIsStale(
-  rated: RatedMovie[],
+  ratedOrStats: RatedMovie[] | { count: number; fingerprint: string },
   storedKey: string | null,
   storedAt: string | null,
 ): boolean {
-  if (rated.length < MIN_RATED_FOR_SUMMARY) return false;
-  if (storedKey === tasteFingerprint(rated)) return false;
+  const count = Array.isArray(ratedOrStats) ? ratedOrStats.length : ratedOrStats.count;
+  const key = Array.isArray(ratedOrStats)
+    ? tasteFingerprint(ratedOrStats)
+    : ratedOrStats.fingerprint;
+
+  if (count < MIN_RATED_FOR_SUMMARY) return false;
+  if (storedKey === key) return false;
 
   // Nothing cached yet — write one now, cooldown or not.
   if (!storedKey || !storedAt) return true;

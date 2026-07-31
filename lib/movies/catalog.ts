@@ -10,6 +10,8 @@ import {
   searchByTasteVector,
 } from "@/lib/movies/search";
 import { MIN_SEARCH_LENGTH } from "@/lib/movies/search-config";
+import type { TasteStats } from "@/lib/profiles/stats";
+import { tasteFingerprint } from "@/lib/profiles/taste-summary";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Presentation helpers live in images.ts so client components can use them
@@ -374,6 +376,192 @@ export async function getRatedMovies(
   }
   return rated;
 }
+
+export type RatingStatsData = {
+  stats: TasteStats;
+  fingerprint: string;
+  topGenres: string[];
+};
+
+/**
+ * Fast aggregate stats for a user's ratings without downloading full movie cards.
+ */
+export async function getRatingStats(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<RatingStatsData> {
+  const { data, error } = await supabase
+    .from("user_movie_ratings")
+    .select(`rating, movies!inner(id, runtime, genres)`)
+    .eq("user_id", userId)
+    .not("rating", "is", null);
+
+  if (error) throw new Error(`Failed to read rating stats: ${error.message}`);
+
+  const rows = data ?? [];
+  const buckets = new Map<number, number>();
+  for (let i = 1; i <= 10; i++) buckets.set(i / 2, 0);
+  const genresMap = new Map<string, number>();
+
+  let totalRating = 0;
+  let minutes = 0;
+  const ratedItemsForFingerprint: Array<{ movie: { id: number }; rating: number }> = [];
+
+  for (const row of rows) {
+    if (row.rating === null || !row.movies) continue;
+    const rating = row.rating;
+    totalRating += rating;
+    const movie = row.movies as unknown as { id: number; runtime: number | null; genres: string[] };
+
+    minutes += movie.runtime ?? 0;
+    const star = rating / 2;
+    buckets.set(star, (buckets.get(star) ?? 0) + 1);
+
+    for (const g of movie.genres ?? []) {
+      genresMap.set(g, (genresMap.get(g) ?? 0) + 1);
+    }
+
+    ratedItemsForFingerprint.push({
+      movie: { id: movie.id },
+      rating,
+    });
+  }
+
+  const sortedGenres = [...genresMap.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const topGenresCount = sortedGenres.slice(0, 5).map(([genre, count]) => ({ genre, count }));
+  const topGenreNames = sortedGenres.map(([genre]) => genre);
+  const count = ratedItemsForFingerprint.length;
+
+  const stats: TasteStats = {
+    count,
+    averageStars: count > 0 ? totalRating / count / 2 : null,
+    totalMinutes: minutes,
+    distribution: [...buckets.entries()].map(([stars, count]) => ({ stars, count })),
+    topGenres: topGenresCount,
+    highest: null,
+    lowest: null,
+  };
+
+  const fingerprint = tasteFingerprint(ratedItemsForFingerprint);
+
+  return {
+    stats,
+    fingerprint,
+    topGenres: topGenreNames,
+  };
+}
+
+export type RatedMoviesSort = "rating-desc" | "rating-asc" | "year-desc" | "year-asc" | "title-asc";
+
+export type RatedMoviesPagedResult = {
+  movies: RatedMovie[];
+  total: number;
+  hasMore: boolean;
+};
+
+/**
+ * Paginated query for a user's rated films, supporting sort and genre filtering.
+ */
+export async function getRatedMoviesPaged(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  {
+    limit = 24,
+    offset = 0,
+    sort = "rating-desc",
+    genre = null,
+  }: {
+    limit?: number;
+    offset?: number;
+    sort?: RatedMoviesSort;
+    genre?: string | null;
+  } = {},
+): Promise<RatedMoviesPagedResult> {
+  let query = supabase
+    .from("user_movie_ratings")
+    .select(`rating, notes, created_at, movies!inner(${CARD_SELECT})`, { count: "exact" })
+    .eq("user_id", userId)
+    .not("rating", "is", null);
+
+  if (genre) {
+    query = query.overlaps("movies.genres", [genre]);
+  }
+
+  switch (sort) {
+    case "rating-desc":
+      query = query.order("rating", { ascending: false }).order("created_at", { ascending: false });
+      break;
+    case "rating-asc":
+      query = query.order("rating", { ascending: true }).order("created_at", { ascending: true });
+      break;
+    case "year-desc":
+      query = query.order("release_year", { referencedTable: "movies", ascending: false, nullsFirst: false });
+      break;
+    case "year-asc":
+      query = query.order("release_year", { referencedTable: "movies", ascending: true, nullsFirst: false });
+      break;
+    case "title-asc":
+      query = query.order("title", { referencedTable: "movies", ascending: true });
+      break;
+  }
+
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(`Failed to read rated films: ${error.message}`);
+
+  const rated: RatedMovie[] = [];
+  for (const row of data ?? []) {
+    if (!row.movies || row.rating === null) continue;
+    rated.push({
+      movie: row.movies as unknown as MovieCard,
+      rating: row.rating,
+      notes: row.notes,
+      ratedAt: row.created_at,
+    });
+  }
+
+  const total = count ?? rated.length;
+  const hasMore = offset + rated.length < total;
+
+  return {
+    movies: rated,
+    total,
+    hasMore,
+  };
+}
+
+/**
+ * Fetch rated movies that have written notes for owner's profile page.
+ */
+export async function getUserNotes(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<RatedMovie[]> {
+  const { data, error } = await supabase
+    .from("user_movie_ratings")
+    .select(`rating, notes, created_at, movies!inner(${CARD_SELECT})`)
+    .eq("user_id", userId)
+    .not("rating", "is", null)
+    .not("notes", "is", null)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to read user notes: ${error.message}`);
+
+  const rated: RatedMovie[] = [];
+  for (const row of data ?? []) {
+    if (!row.movies || row.rating === null) continue;
+    rated.push({
+      movie: row.movies as unknown as MovieCard,
+      rating: row.rating,
+      notes: row.notes,
+      ratedAt: row.created_at,
+    });
+  }
+
+  return rated;
+}
+
 
 export type TopPicksForYou = {
   movies: MovieCard[];
