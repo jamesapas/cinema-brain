@@ -3,7 +3,7 @@
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import {
   addComment,
@@ -22,6 +22,7 @@ import {
   MAX_COMMENT_LENGTH,
   relativeTime,
   type FeedEntry,
+  type Post,
   type PostAuthor,
   type PostComment,
 } from "@/lib/social/posts";
@@ -63,11 +64,10 @@ export function PostCard({
 
   const [comments, setComments] = useState<PostComment[] | null>(initialComments);
   const [commentCount, setCommentCount] = useState(post.comments);
-  const [open, setOpen] = useState(initialComments !== null);
+  const [visibleCount, setVisibleCount] = useState(1);
   const loadingComments = commentCount > 0 && comments === null;
 
   const [removed, setRemoved] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
@@ -113,19 +113,8 @@ export function PostCard({
     });
   }
 
-  async function toggleThread() {
-    if (open) {
-      setOpen(false);
-      return;
-    }
-
-    setOpen(true);
-    if (comments !== null) return;
-
-    const result = await loadComments(post.id);
-
-    if (result.ok) setComments(result.comments);
-    else setError(result.error);
+  function handleLoadMore() {
+    setVisibleCount((prev) => prev + 5);
   }
 
   function remove() {
@@ -134,7 +123,6 @@ export function PostCard({
       const result = await deletePost(post.id);
       if (result.ok) setRemoved(true);
       else {
-        setConfirmingDelete(false);
         setError(result.error);
       }
     });
@@ -151,7 +139,7 @@ export function PostCard({
     if (selection && selection.toString().length > 0) return;
 
     const target = event.target as HTMLElement;
-    if (target.closest("a, button, input, textarea, select, form, label, [role='button']")) return;
+    if (target.closest("a, button, input, textarea, select, form, label, [role='button'], .comments-section")) return;
 
     if (event.metaKey || event.ctrlKey) {
       window.open(`/post/${post.id}`, "_blank");
@@ -162,7 +150,7 @@ export function PostCard({
 
   if (removed) return null;
 
-  const shownComments = comments ? (open ? comments : comments.slice(0, 3)) : [];
+  const shownComments = comments ? comments.slice(0, visibleCount) : [];
 
   return (
     <article
@@ -181,7 +169,7 @@ export function PostCard({
         </Link>
 
         <div className="min-w-0 flex-1">
-          <header className="flex items-center gap-x-2 flex-wrap min-w-0">
+          <header className="flex items-center gap-x-1.5 flex-wrap min-w-0">
             <Link
               href={`/${post.author.username}`}
               className="truncate font-semibold text-bone hover:underline"
@@ -198,28 +186,30 @@ export function PostCard({
               <TimeAgo iso={post.createdAt} />
             </Link>
 
-            <div className="ml-auto flex items-center gap-2 shrink-0">
-              {!isOwner && (
+            {!isOwner && (
+              <>
+                <span aria-hidden className="text-bone-dim/40 text-xs">
+                  ·
+                </span>
                 <FollowButton
                   targetId={post.author.id}
                   targetUsername={post.author.username}
                   initialFollowing={isFollowing}
                   className={(active) =>
-                    `px-3 py-1 text-xs h-7 rounded-full font-semibold transition-colors ${
-                      active ? "btn btn-quiet" : "btn btn-primary"
+                    `text-xs font-semibold transition-colors cursor-pointer bg-transparent border-none p-0 h-auto ${
+                      active ? "text-bone-dim hover:text-bone" : "text-lamp hover:underline"
                     }`
                   }
                 />
-              )}
+              </>
+            )}
 
-              {isOwner && (
-                <DeleteControl
-                  confirming={confirmingDelete}
-                  onAsk={() => setConfirmingDelete(true)}
-                  onCancel={() => setConfirmingDelete(false)}
-                  onConfirm={remove}
-                />
-              )}
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <PostOptionsControl
+                post={post}
+                isOwner={isOwner}
+                onDeleteConfirm={remove}
+              />
             </div>
           </header>
 
@@ -249,8 +239,7 @@ export function PostCard({
               count={commentCount}
               label={commentCount > 0 ? `${commentCount} ${commentCount === 1 ? "Comment" : "Comments"}` : "Comment"}
               tone="text-bone"
-              expanded={open}
-              onClick={toggleThread}
+              onClick={handleLoadMore}
             />
 
             <ActionButton
@@ -273,7 +262,10 @@ export function PostCard({
           </div>
 
           {/* Comments list & input box section (always visible) */}
-          <div className="mt-3.5 space-y-3 border-l-2 border-ink-line pl-3.5 pt-1">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="comments-section mt-3.5 space-y-3 border-l-2 border-ink-line pl-3.5 pt-1 cursor-default"
+          >
             {commentCount > 0 && (
               <div className="space-y-2.5">
                 {loadingComments && comments === null ? (
@@ -293,13 +285,24 @@ export function PostCard({
                       />
                     ))}
 
-                    {commentCount > shownComments.length && !open && (
-                      <button
-                        onClick={toggleThread}
-                        className="meta !text-xs text-bone-dim hover:text-bone transition-colors pt-1 block"
-                      >
-                        View all {commentCount} comments
-                      </button>
+                    {comments && comments.length > 1 && (
+                      visibleCount < comments.length ? (
+                        <button
+                          type="button"
+                          onClick={handleLoadMore}
+                          className="meta !text-xs text-bone-dim hover:text-bone hover:underline transition-colors pt-1 block cursor-pointer"
+                        >
+                          Load more comments
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setVisibleCount(1)}
+                          className="meta !text-xs text-bone-dim hover:text-bone hover:underline transition-colors pt-1 block cursor-pointer"
+                        >
+                          Hide comments
+                        </button>
+                      )
                     )}
                   </>
                 )}
@@ -310,7 +313,7 @@ export function PostCard({
             <CommentComposer
               postId={post.id}
               onAdded={(newComment) => {
-                setComments((current) => [...(current ?? []), newComment]);
+                setComments((current) => [newComment, ...(current ?? [])]);
                 setCommentCount((current) => current + 1);
               }}
             />
@@ -442,72 +445,333 @@ export function ActionButton({
 }
 
 /**
- * Delete, with a sleek 3-dots popover menu.
+ * Unified 3-dots post options menu: Share, Delete post (if owner), and Cancel.
  */
-export function DeleteControl({
-  confirming,
-  onAsk,
-  onCancel,
-  onConfirm,
+export function PostOptionsControl({
+  post,
+  isOwner,
+  onDeleteConfirm,
 }: {
-  confirming: boolean;
-  onAsk: () => void;
-  onCancel: () => void;
-  onConfirm: () => void;
+  post: Post;
+  isOwner: boolean;
+  onDeleteConfirm?: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!confirming) return;
+    if (!menuOpen) return;
     function onPointerDown(event: PointerEvent) {
-      if (!ref.current?.contains(event.target as Node)) onCancel();
+      if (!ref.current?.contains(event.target as Node)) setMenuOpen(false);
     }
     window.addEventListener("pointerdown", onPointerDown);
     return () => window.removeEventListener("pointerdown", onPointerDown);
-  }, [confirming, onCancel]);
+  }, [menuOpen]);
 
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        onClick={onAsk}
-        aria-label="Post options"
-        className="grid size-7 place-items-center rounded-full text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone"
-      >
-        <Icon icon="lucide:more-horizontal" width={17} height={17} aria-hidden />
-      </button>
-    );
-  }
+  useEffect(() => {
+    if (!showDeleteModal && !showShareModal) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setShowDeleteModal(false);
+        setShowShareModal(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showDeleteModal, showShareModal]);
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <>
+      <div ref={ref} className={`relative inline-block ${menuOpen ? "z-50" : ""}`}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(!menuOpen);
+          }}
+          aria-label="Post options"
+          className="grid size-7 place-items-center rounded-full text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone cursor-pointer"
+        >
+          <Icon icon="lucide:more-horizontal" width={17} height={17} aria-hidden />
+        </button>
+
+        {menuOpen && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-full mt-1 z-50 w-36 rounded-xl border border-ink-line bg-[#0c1116] opacity-100 shadow-2xl p-1.5"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                setShowShareModal(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-bone transition-colors hover:bg-bone/10 cursor-pointer"
+            >
+              <Icon icon="lucide:share" width={14} height={14} className="shrink-0 text-bone-dim" />
+              Share
+            </button>
+
+            {isOwner && onDeleteConfirm && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  setShowDeleteModal(true);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-ember transition-colors hover:bg-ember/15 whitespace-nowrap cursor-pointer"
+              >
+                <Icon icon="lucide:trash-2" width={14} height={14} className="shrink-0" />
+                Delete post
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone cursor-pointer"
+            >
+              <Icon icon="lucide:x" width={14} height={14} className="shrink-0" />
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showShareModal && (
+        <ShareModal
+          postPath={`/post/${post.id}`}
+          text={post.body.slice(0, 100)}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
+
+      {showDeleteModal && onDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <button
+            type="button"
+            aria-label="Close modal"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteModal(false);
+            }}
+            className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Delete post"
+            className="palette-in relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-6 space-y-4"
+          >
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-bone">Delete post?</h3>
+              <p className="text-sm leading-relaxed text-bone-soft">
+                This action cannot be undone. This post will be permanently removed from your profile and feed.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="btn btn-quiet !text-xs !py-2 !px-4 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  onDeleteConfirm();
+                }}
+                className="btn !bg-ember !text-bone hover:!bg-ember/85 !text-xs !py-2 !px-4 cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Share modal overlay styled like SearchOverlay scrim.
+ */
+export function ShareModal({
+  postPath,
+  title,
+  text,
+  onClose,
+}: {
+  postPath: string;
+  title?: string;
+  text?: string;
+  onClose: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const fullUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${postPath}`
+      : postPath;
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleNativeShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({
+          title: title ?? "Check out this post on Kino",
+          text: text ?? "Check out this post on Kino",
+          url: fullUrl,
+        });
+        onClose();
+      } catch {
+        // user cancelled
+      }
+    }
+  };
+
+  const shareTitle = title ?? "Check out this post on Kino";
+  const shareText = text ?? "Check out this post on Kino";
+
+  const shareLinks = [
+    {
+      name: "Facebook",
+      icon: "ri:facebook-circle-fill",
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`,
+    },
+    {
+      name: "X (Twitter)",
+      icon: "ri:twitter-x-fill",
+      url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(shareText)}`,
+    },
+    {
+      name: "WhatsApp",
+      icon: "ri:whatsapp-fill",
+      url: `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText} ${fullUrl}`)}`,
+    },
+    {
+      name: "Email / Gmail",
+      icon: "lucide:mail",
+      url: `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`${shareText}\n\n${fullUrl}`)}`,
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
       <button
         type="button"
-        onClick={onAsk}
-        aria-label="Post options"
-        className="grid size-7 place-items-center rounded-full text-bone bg-bone/10"
+        aria-label="Close modal"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
+      />
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Share post"
+        className="palette-in relative z-10 w-full max-w-xs overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-5 space-y-4"
       >
-        <Icon icon="lucide:more-horizontal" width={17} height={17} aria-hidden />
-      </button>
-      <div className="absolute right-0 top-full mt-1 z-30 w-36 rounded-xl border border-ink-line bg-ink-raised shadow-xl p-1.5 animate-in fade-in">
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-ember transition-colors hover:bg-ember/15"
-        >
-          <Icon icon="lucide:trash-2" width={14} height={14} />
-          Delete post
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone"
-        >
-          <Icon icon="lucide:x" width={14} height={14} />
-          Cancel
-        </button>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-bone">Share post</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-bone-dim hover:text-bone p-1 rounded-full hover:bg-bone/10 transition-colors cursor-pointer"
+          >
+            <Icon icon="lucide:x" width={16} height={16} />
+          </button>
+        </div>
+
+        <div className="space-y-1.5 pt-1">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-bone transition-colors hover:bg-bone/10 cursor-pointer"
+          >
+            <Icon
+              icon={copied ? "lucide:check" : "lucide:link"}
+              width={16}
+              height={16}
+              className={copied ? "text-lamp" : "text-bone-dim"}
+            />
+            {copied ? "Link Copied!" : "Copy Link"}
+          </button>
+
+          {typeof navigator !== "undefined" && "share" in navigator && (
+            <button
+              type="button"
+              onClick={handleNativeShare}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-semibold text-bone transition-colors hover:bg-bone/10 cursor-pointer"
+            >
+              <Icon icon="lucide:share" width={16} height={16} className="text-bone-dim" />
+              More options…
+            </button>
+          )}
+
+          <div className="my-2 border-t border-ink-line/60" />
+
+          {shareLinks.map((item) => (
+            <a
+              key={item.name}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={onClose}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-xs font-medium text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone cursor-pointer"
+            >
+              <Icon icon={item.icon} width={16} height={16} className="shrink-0" />
+              {item.name}
+            </a>
+          ))}
+        </div>
       </div>
     </div>
+  );
+}
+
+/** Legacy alias for DeleteControl */
+export function DeleteControl({
+  onConfirm,
+}: {
+  confirming?: boolean;
+  onAsk?: () => void;
+  onCancel?: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <PostOptionsControl
+      post={{ id: "", body: "" } as Post}
+      isOwner={true}
+      onDeleteConfirm={onConfirm}
+    />
   );
 }
 
@@ -622,7 +886,7 @@ export function ShareControl({
       {open && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute right-0 bottom-full mb-2 z-40 w-48 rounded-xl border border-ink-line bg-ink-raised shadow-xl p-1.5 animate-in fade-in zoom-in-95"
+          className="absolute right-0 bottom-full mb-2 z-50 w-48 rounded-xl border border-ink-line bg-[#0c1116] opacity-100 shadow-2xl p-1.5"
         >
           <button
             type="button"
@@ -670,7 +934,144 @@ export function ShareControl({
   );
 }
 
+/**
+ * Sleek 3-dots delete options menu for comments with confirmation modal dialog.
+ */
+function CommentDeleteControl({
+  onConfirm,
+  onMenuOpenChange,
+}: {
+  onConfirm: () => void;
+  onMenuOpenChange?: (open: boolean) => void;
+}) {
+  const [menuOpen, setMenuOpenState] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
+  const setMenuOpen = useCallback(
+    (open: boolean) => {
+      setMenuOpenState(open);
+      onMenuOpenChange?.(open);
+    },
+    [onMenuOpenChange]
+  );
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!ref.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [menuOpen, setMenuOpen]);
+
+  useEffect(() => {
+    if (!showConfirmModal) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowConfirmModal(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showConfirmModal]);
+
+  return (
+    <>
+      <div ref={ref} className={`relative ml-auto shrink-0 inline-block ${menuOpen ? "z-50" : ""}`}>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenuOpen(!menuOpen);
+          }}
+          aria-label="Comment options"
+          className="grid size-6 place-items-center rounded-full text-bone-dim transition-all hover:bg-bone/10 hover:text-bone opacity-0 group-hover/comment:opacity-100 focus-visible:opacity-100 cursor-pointer"
+        >
+          <Icon icon="lucide:more-horizontal" width={14} height={14} aria-hidden />
+        </button>
+
+        {menuOpen && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-0 top-full mt-1 z-[100] w-40 rounded-xl border border-ink-line bg-[#0c1116] opacity-100 shadow-2xl p-1.5"
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                setShowConfirmModal(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-ember transition-colors hover:bg-ember/15 whitespace-nowrap cursor-pointer"
+            >
+              <Icon icon="lucide:trash-2" width={14} height={14} className="shrink-0" />
+              Delete comment
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-bone-dim transition-colors hover:bg-bone/10 hover:text-bone cursor-pointer"
+            >
+              <Icon icon="lucide:x" width={14} height={14} className="shrink-0" />
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <button
+            type="button"
+            aria-label="Close modal"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowConfirmModal(false);
+            }}
+            className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Delete comment"
+            className="palette-in relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-6 space-y-4"
+          >
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-bone">Delete comment?</h3>
+              <p className="text-sm leading-relaxed text-bone-soft">
+                This action cannot be undone. This comment will be permanently removed.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="btn btn-quiet !text-xs !py-2 !px-4 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  onConfirm();
+                }}
+                className="btn !bg-ember !text-bone hover:!bg-ember/85 !text-xs !py-2 !px-4 cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 export function CommentRow({
   comment,
@@ -683,6 +1084,7 @@ export function CommentRow({
   followingIds?: string[];
   onRemoved: (commentId: string) => void;
 }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -699,7 +1101,7 @@ export function CommentRow({
   }
 
   return (
-    <li className="group/comment flex gap-2.5">
+    <li className={`group/comment flex gap-2.5 animate-comment-fade ${isMenuOpen ? "relative z-50" : "relative z-0"}`}>
       <Link href={`/${comment.author.username}`} className="shrink-0 pt-0.5">
         <Avatar
           url={avatarUrl(comment.author.avatar_path)}
@@ -744,14 +1146,7 @@ export function CommentRow({
           )}
 
           {comment.deletableByViewer && (
-            <button
-              type="button"
-              onClick={remove}
-              aria-label="Delete this comment"
-              className="ml-auto shrink-0 text-bone-dim hover:text-ember opacity-0 transition-opacity group-hover/comment:opacity-100 focus-visible:opacity-100"
-            >
-              <Icon icon="lucide:x" width={14} height={14} aria-hidden />
-            </button>
+            <CommentDeleteControl onConfirm={remove} onMenuOpenChange={setIsMenuOpen} />
           )}
         </div>
 

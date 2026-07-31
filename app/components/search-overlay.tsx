@@ -32,10 +32,11 @@ import { posterUrl, type MovieCard } from "@/lib/movies/images";
 
 const SearchOverlayContext = createContext<(() => void) | null>(null);
 
+const NOOP = () => {};
+
 export function useSearchOverlay() {
   const open = useContext(SearchOverlayContext);
-  if (!open) throw new Error("useSearchOverlay must be used inside SearchOverlayProvider.");
-  return open;
+  return open ?? NOOP;
 }
 
 export function SearchOverlayProvider({ children }: { children: React.ReactNode }) {

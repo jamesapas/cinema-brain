@@ -16,7 +16,7 @@ import {
   ActionButton,
   CommentComposer,
   CommentRow,
-  DeleteControl,
+  PostOptionsControl,
   ShareControl,
   TimeAgo,
 } from "@/app/components/post-card";
@@ -54,12 +54,11 @@ export function SinglePostView({
   const [reposts, setReposts] = useState(post.reposts);
 
   const [comments, setComments] = useState<PostComment[]>(initialComments);
-  const [commentCount, setCommentCount] = useState(
-    Math.max(post.comments, initialComments.length),
-  );
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [visibleCount, setVisibleCount] = useState(10);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [removed, setRemoved] = useState(false);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
@@ -101,25 +100,56 @@ export function SinglePostView({
         setRemoved(true);
         router.push("/feed");
       } else {
-        setConfirmingDelete(false);
         setError(result.error);
       }
     });
   }
 
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/feed");
+    }
+  }
+
   if (removed) return null;
+
+  const sortedComments = [...comments].sort((a, b) => {
+    const tA = new Date(a.createdAt).getTime();
+    const tB = new Date(b.createdAt).getTime();
+    return sortOrder === "newest" ? tB - tA : tA - tB;
+  });
+
+  const handleScroll = (e: React.UIEvent<HTMLUListElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (
+      !isLoadingMore &&
+      scrollHeight - scrollTop - clientHeight < 80 &&
+      visibleCount < sortedComments.length
+    ) {
+      setIsLoadingMore(true);
+      setTimeout(() => {
+        setVisibleCount((prev) => Math.min(prev + 10, sortedComments.length));
+        setIsLoadingMore(false);
+      }, 300);
+    }
+  };
+
+  const visibleComments = sortedComments.slice(0, visibleCount);
 
   return (
     <div className="w-full lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12 xl:gap-16">
       {/* Main Post Section (Left Column) */}
       <div className="min-w-0 flex-1">
-        <Link
-          href="/feed"
-          className="meta inline-flex items-center gap-1.5 text-xs text-bone-dim transition-colors hover:text-bone mb-6"
+        <button
+          type="button"
+          onClick={handleBack}
+          className="meta inline-flex items-center gap-1.5 text-xs text-bone-dim transition-colors hover:text-bone mb-6 cursor-pointer"
         >
           <Icon icon="lucide:arrow-left" width={15} height={15} aria-hidden />
-          Back to the feed
-        </Link>
+          Back
+        </button>
 
         <article className="mt-4 pb-6 border-b lg:border-b-0 border-ink-line">
           {/* Author Header */}
@@ -147,34 +177,35 @@ export function SinglePostView({
                     @{post.author.username}
                   </Link>
                 </div>
-                <p className="meta mt-0.5 !text-xs text-bone-dim">
+                <p className="meta mt-0.5 !text-xs text-bone-dim flex items-center gap-1.5 flex-wrap">
                   <TimeAgo iso={post.createdAt} />
+                  {!isOwner && (
+                    <>
+                      <span aria-hidden className="text-bone-dim/40 text-xs">
+                        ·
+                      </span>
+                      <FollowButton
+                        targetId={post.author.id}
+                        targetUsername={post.author.username}
+                        initialFollowing={isFollowing}
+                        className={(active) =>
+                          `text-xs font-semibold transition-colors cursor-pointer bg-transparent border-none p-0 h-auto ${
+                            active ? "text-bone-dim hover:text-bone" : "text-lamp hover:underline"
+                          }`
+                        }
+                      />
+                    </>
+                  )}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {!isOwner && (
-                <FollowButton
-                  targetId={post.author.id}
-                  targetUsername={post.author.username}
-                  initialFollowing={isFollowing}
-                  className={(active) =>
-                    `px-4 py-1.5 text-xs h-8 rounded-full font-semibold transition-colors ${
-                      active ? "btn btn-quiet" : "btn btn-primary"
-                    }`
-                  }
-                />
-              )}
-
-              {isOwner && (
-                <DeleteControl
-                  confirming={confirmingDelete}
-                  onAsk={() => setConfirmingDelete(true)}
-                  onCancel={() => setConfirmingDelete(false)}
-                  onConfirm={remove}
-                />
-              )}
+              <PostOptionsControl
+                post={post}
+                isOwner={isOwner}
+                onDeleteConfirm={remove}
+              />
             </div>
           </header>
 
@@ -208,15 +239,6 @@ export function SinglePostView({
               />
 
               <ActionButton
-                icon="lucide:message-circle"
-                filled={false}
-                count={commentCount}
-                label="Comments"
-                tone="text-bone"
-                onClick={() => {}}
-              />
-
-              <ActionButton
                 icon="hugeicons:repost"
                 filled={reposted}
                 count={reposts}
@@ -247,17 +269,30 @@ export function SinglePostView({
       {/* Comments Sidebar (Right Column on desktop) */}
       <aside className="mt-8 lg:mt-0 lg:sticky lg:top-28 w-full space-y-5">
         <div className="flex items-center justify-between border-b border-ink-line pb-3.5">
-          <h2 className="text-base font-bold text-bone flex items-center gap-2">
-            <Icon icon="lucide:message-square" width={18} height={18} className="text-lamp" />
+          <h2 className="text-base font-bold text-bone">
             Comments
           </h2>
+
+          {comments.length > 1 && (
+            <button
+              type="button"
+              onClick={() => setSortOrder(sortOrder === "newest" ? "oldest" : "newest")}
+              className="meta flex items-center gap-1.5 text-xs text-bone-dim hover:text-bone transition-colors cursor-pointer"
+            >
+              <Icon icon="lucide:arrow-up-down" width={13} height={13} />
+              <span>{sortOrder === "newest" ? "Newest first" : "Oldest first"}</span>
+            </button>
+          )}
         </div>
 
         {/* Comments list */}
         <div className="pt-2">
-          {comments.length > 0 ? (
-            <ul className="space-y-4 max-h-[32rem] overflow-y-auto pr-1 no-scrollbar">
-              {comments.map((comment) => (
+          {sortedComments.length > 0 ? (
+            <ul
+              onScroll={handleScroll}
+              className="space-y-4 max-h-[32rem] overflow-y-auto pr-1 no-scrollbar"
+            >
+              {visibleComments.map((comment) => (
                 <CommentRow
                   key={comment.id}
                   comment={comment}
@@ -265,18 +300,19 @@ export function SinglePostView({
                   followingIds={followingIds}
                   onRemoved={(id) => {
                     setComments((current) => current.filter((c) => c.id !== id));
-                    setCommentCount((current) => Math.max(0, current - 1));
                   }}
                 />
               ))}
+              {isLoadingMore && (
+                <>
+                  <CommentRowSkeleton />
+                  <CommentRowSkeleton />
+                </>
+              )}
             </ul>
           ) : (
-            <div className="py-6 text-center">
-              <Icon icon="lucide:messages-square" width={32} height={32} className="mx-auto text-bone-dim/40 mb-2" />
+            <div className="py-4 text-center">
               <p className="text-xs text-bone-dim font-medium">No comments yet</p>
-              <p className="meta !text-[0.6875rem] text-bone-dim/70 mt-1">
-                Be the first to share your thoughts on this post.
-              </p>
             </div>
           )}
         </div>
@@ -286,12 +322,23 @@ export function SinglePostView({
           <CommentComposer
             postId={post.id}
             onAdded={(newComment) => {
-              setComments((current) => [...current, newComment]);
-              setCommentCount((current) => current + 1);
+              setComments((current) => [newComment, ...current]);
             }}
           />
         </div>
       </aside>
     </div>
+  );
+}
+
+function CommentRowSkeleton() {
+  return (
+    <li className="flex gap-2.5 pt-1 animate-pulse">
+      <div className="skeleton size-7 rounded-full shrink-0" />
+      <div className="space-y-2 flex-1 min-w-0">
+        <div className="skeleton h-3.5 w-28 rounded-md" />
+        <div className="skeleton h-3.5 w-4/5 rounded-md" />
+      </div>
+    </li>
   );
 }

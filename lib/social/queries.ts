@@ -346,7 +346,7 @@ export async function getComments(
     .from("post_comments")
     .select("id, author_id, body, created_at")
     .eq("post_id", postId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to read comments: ${error.message}`);
 

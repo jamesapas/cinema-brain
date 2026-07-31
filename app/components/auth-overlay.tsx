@@ -44,14 +44,15 @@ type AuthOverlayContextValue = {
   open: (reason?: string, mode?: Mode) => void;
 };
 
+const DEFAULT_AUTH_OVERLAY_CONTEXT: AuthOverlayContextValue = {
+  open: () => {},
+};
+
 const AuthOverlayContext = createContext<AuthOverlayContextValue | null>(null);
 
 export function useAuthOverlay() {
   const context = useContext(AuthOverlayContext);
-  if (!context) {
-    throw new Error("useAuthOverlay must be used inside AuthOverlayProvider.");
-  }
-  return context;
+  return context ?? DEFAULT_AUTH_OVERLAY_CONTEXT;
 }
 
 export function AuthOverlayProvider({ children }: { children: React.ReactNode }) {

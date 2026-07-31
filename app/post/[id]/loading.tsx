@@ -33,28 +33,42 @@ export default function Loading() {
         </div>
 
         {/* Right sidebar comments skeleton */}
-        <div className="mt-8 lg:mt-0 w-full space-y-4">
-          <div className="flex items-center justify-between border-b border-ink-line pb-3">
+        <aside className="mt-8 lg:mt-0 w-full space-y-5">
+          <div className="flex items-center justify-between border-b border-ink-line pb-3.5">
             <div className="skeleton h-5 w-24 rounded-md" />
           </div>
-          <div className="skeleton h-10 w-full rounded-lg" />
-          <div className="space-y-3 pt-2">
-            <div className="flex gap-3">
+
+          {/* Comments list skeleton */}
+          <div className="space-y-4 pt-2">
+            <div className="flex gap-2.5">
               <div className="skeleton size-7 rounded-full shrink-0" />
-              <div className="space-y-2 flex-1">
-                <div className="skeleton h-3.5 w-24 rounded-md" />
-                <div className="skeleton h-3 w-full rounded-md" />
+              <div className="space-y-2 flex-1 min-w-0">
+                <div className="skeleton h-3.5 w-32 rounded-md" />
+                <div className="skeleton h-3.5 w-full rounded-md" />
               </div>
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2.5 pt-1">
               <div className="skeleton size-7 rounded-full shrink-0" />
-              <div className="space-y-2 flex-1">
+              <div className="space-y-2 flex-1 min-w-0">
                 <div className="skeleton h-3.5 w-28 rounded-md" />
-                <div className="skeleton h-3 w-3/4 rounded-md" />
+                <div className="skeleton h-3.5 w-4/5 rounded-md" />
+              </div>
+            </div>
+            <div className="flex gap-2.5 pt-1">
+              <div className="skeleton size-7 rounded-full shrink-0" />
+              <div className="space-y-2 flex-1 min-w-0">
+                <div className="skeleton h-3.5 w-36 rounded-md" />
+                <div className="skeleton h-3.5 w-2/3 rounded-md" />
               </div>
             </div>
           </div>
-        </div>
+
+          {/* Comment input composer skeleton at bottom */}
+          <div className="pt-3 border-t border-ink-line/60 flex gap-2.5 items-center">
+            <div className="skeleton size-7 rounded-full shrink-0" />
+            <div className="skeleton h-9 flex-1 rounded-xl" />
+          </div>
+        </aside>
       </div>
     </main>
   );

@@ -68,6 +68,7 @@ export function SiteHeader({
               is something to read before it's something to write in. */}
           <NavLink href="/feed" icon="lucide:newspaper" label="Feed" />
 
+          <NotificationButton />
           <SearchButton />
 
           {email !== null ? (
@@ -105,6 +106,18 @@ function SearchButton() {
       className={ICON_CONTROL}
     >
       <Icon icon="lucide:search" width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
+    </button>
+  );
+}
+
+function NotificationButton() {
+  return (
+    <button
+      type="button"
+      aria-label="Notifications"
+      className={ICON_CONTROL}
+    >
+      <Icon icon="lucide:bell" width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
     </button>
   );
 }
