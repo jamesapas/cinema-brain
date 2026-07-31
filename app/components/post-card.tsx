@@ -2,6 +2,7 @@
 
 import { Icon } from "@iconify/react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import {
@@ -63,7 +64,7 @@ export function PostCard({
   const [comments, setComments] = useState<PostComment[] | null>(initialComments);
   const [commentCount, setCommentCount] = useState(post.comments);
   const [open, setOpen] = useState(initialComments !== null);
-  const [loadingComments, setLoadingComments] = useState(false);
+  const loadingComments = commentCount > 0 && comments === null;
 
   const [removed, setRemoved] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -75,14 +76,16 @@ export function PostCard({
   const isFollowing = followingIds.includes(post.author.id);
 
   useEffect(() => {
-    if (commentCount > 0 && comments === null && !loadingComments) {
-      setLoadingComments(true);
+    if (commentCount > 0 && comments === null) {
+      let active = true;
       loadComments(post.id).then((result) => {
-        setLoadingComments(false);
-        if (result.ok) setComments(result.comments);
+        if (active && result.ok) setComments(result.comments);
       });
+      return () => {
+        active = false;
+      };
     }
-  }, [commentCount, comments, loadingComments, post.id]);
+  }, [commentCount, comments, post.id]);
 
   function react(
     kind: "like" | "repost",
@@ -119,9 +122,7 @@ export function PostCard({
     setOpen(true);
     if (comments !== null) return;
 
-    setLoadingComments(true);
     const result = await loadComments(post.id);
-    setLoadingComments(false);
 
     if (result.ok) setComments(result.comments);
     else setError(result.error);
@@ -139,12 +140,35 @@ export function PostCard({
     });
   }
 
+  const pathname = usePathname();
+  const router = useRouter();
+  const isSinglePostPage = pathname === `/post/${post.id}`;
+
+  function handleCardClick(event: React.MouseEvent<HTMLElement>) {
+    if (isSinglePostPage || event.defaultPrevented) return;
+
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+
+    const target = event.target as HTMLElement;
+    if (target.closest("a, button, input, textarea, select, form, label, [role='button']")) return;
+
+    if (event.metaKey || event.ctrlKey) {
+      window.open(`/post/${post.id}`, "_blank");
+    } else {
+      router.push(`/post/${post.id}`);
+    }
+  }
+
   if (removed) return null;
 
   const shownComments = comments ? (open ? comments : comments.slice(0, 3)) : [];
 
   return (
-    <article className="border-b border-ink-line py-5">
+    <article
+      onClick={handleCardClick}
+      className={`border-b border-ink-line py-5 ${!isSinglePostPage ? "cursor-pointer" : ""}`}
+    >
       {entry.repostedBy && <RepostLine by={entry.repostedBy} viewerId={viewerId} />}
 
       <div className="flex gap-3.5">
@@ -240,6 +264,11 @@ export function PostCard({
                   setReposts((current) => current + delta),
                 )
               }
+            />
+
+            <ShareControl
+              postPath={`/post/${post.id}`}
+              text={post.body.slice(0, 100)}
             />
           </div>
 
@@ -343,7 +372,7 @@ function subscribeToTick(onTick: () => void) {
   };
 }
 
-function TimeAgo({ iso }: { iso: string }) {
+export function TimeAgo({ iso }: { iso: string }) {
   const label = useSyncExternalStore(
     subscribeToTick,
     () => relativeTime(iso),
@@ -353,11 +382,12 @@ function TimeAgo({ iso }: { iso: string }) {
   return <time dateTime={iso}>{label}</time>;
 }
 
-function ActionButton({
+export function ActionButton({
   icon,
   filled,
   count,
   label,
+  textLabel,
   tone,
   expanded,
   onClick,
@@ -366,10 +396,25 @@ function ActionButton({
   filled: boolean;
   count: number;
   label: string;
+  textLabel?: string;
   tone: string;
   expanded?: boolean;
   onClick: () => void;
 }) {
+  const displayLabel =
+    textLabel ??
+    (label === "Unlike"
+      ? "Liked"
+      : label === "Like"
+        ? "Like"
+        : label === "Undo repost"
+          ? "Reposted"
+          : label === "Repost"
+            ? "Repost"
+            : label.includes("Comment")
+              ? "Comment"
+              : label);
+
   return (
     <button
       type="button"
@@ -390,6 +435,7 @@ function ActionButton({
         aria-hidden
         className={`pointer-events-none transition-transform group-active:scale-125 ${filled ? "[&_*]:fill-current" : ""}`}
       />
+      {displayLabel && <span className="hidden sm:inline">{displayLabel}</span>}
       <span className="tabular-nums">{count > 0 ? count : ""}</span>
     </button>
   );
@@ -398,7 +444,7 @@ function ActionButton({
 /**
  * Delete, with a sleek 3-dots popover menu.
  */
-function DeleteControl({
+export function DeleteControl({
   confirming,
   onAsk,
   onCancel,
@@ -465,44 +511,168 @@ function DeleteControl({
   );
 }
 
-/** The replies under an opened post, and the box for adding one. */
-function Thread({
-  postId,
-  comments,
-  loading,
-  showCommentList = true,
-  onAdded,
-  onRemoved,
+/**
+ * Share post menu: copy link, native OS web share, and direct social links.
+ */
+export function ShareControl({
+  postPath,
+  title,
+  text,
 }: {
-  postId: string;
-  comments: PostComment[] | null;
-  loading: boolean;
-  showCommentList?: boolean;
-  onAdded: (comment: PostComment) => void;
-  onRemoved: (commentId: string) => void;
+  postPath: string;
+  title?: string;
+  text?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  const fullUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${postPath}`
+      : postPath;
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleNativeShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof navigator !== "undefined" && "share" in navigator) {
+      try {
+        await navigator.share({
+          title: title ?? "Check out this post on Kino",
+          text: text ?? "Check out this post on Kino",
+          url: fullUrl,
+        });
+        setOpen(false);
+      } catch {
+        // user cancelled
+      }
+    }
+  };
+
+  const shareTitle = title ?? "Check out this post on Kino";
+  const shareText = text ?? "Check out this post on Kino";
+
+  const shareLinks = [
+    {
+      name: "Facebook",
+      icon: "ri:facebook-circle-fill",
+      url: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fullUrl)}`,
+    },
+    {
+      name: "X (Twitter)",
+      icon: "ri:twitter-x-fill",
+      url: `https://twitter.com/intent/tweet?url=${encodeURIComponent(fullUrl)}&text=${encodeURIComponent(shareText)}`,
+    },
+    {
+      name: "WhatsApp",
+      icon: "ri:whatsapp-fill",
+      url: `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText} ${fullUrl}`)}`,
+    },
+    {
+      name: "Email / Gmail",
+      icon: "lucide:mail",
+      url: `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(`${shareText}\n\n${fullUrl}`)}`,
+    },
+  ];
+
   return (
-    <section className="mt-3 border-l-2 border-ink-line pl-4">
-      {showCommentList && loading && comments === null ? (
-        <p className="meta py-2">Loading replies…</p>
-      ) : (
-        <>
-          {showCommentList && comments && comments.length > 0 && (
-            <ul className="flex flex-col gap-3.5 pb-1">
-              {comments.map((comment) => (
-                <CommentRow key={comment.id} comment={comment} onRemoved={onRemoved} />
-              ))}
-            </ul>
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        aria-label="Share post"
+        className={`group flex items-center gap-1.5 rounded-full py-1.5 px-3 text-xs sm:text-sm font-medium transition-all ${
+          open
+            ? "text-bone bg-bone/8"
+            : "text-bone-dim hover:text-bone hover:bg-bone/8"
+        }`}
+      >
+        <Icon
+          icon="lucide:share-2"
+          width={16}
+          height={16}
+          aria-hidden
+          className="pointer-events-none transition-transform group-active:scale-125"
+        />
+        <span className="hidden sm:inline">Share</span>
+      </button>
+
+      {open && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-0 bottom-full mb-2 z-40 w-48 rounded-xl border border-ink-line bg-ink-raised shadow-xl p-1.5 animate-in fade-in zoom-in-95"
+        >
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-bone transition-colors hover:bg-bone/10"
+          >
+            <Icon
+              icon={copied ? "lucide:check" : "lucide:link"}
+              width={15}
+              height={15}
+              className={copied ? "text-lamp" : "text-bone-dim"}
+            />
+            {copied ? "Link Copied!" : "Copy Link"}
+          </button>
+
+          {typeof navigator !== "undefined" && "share" in navigator && (
+            <button
+              type="button"
+              onClick={handleNativeShare}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-bone transition-colors hover:bg-bone/10"
+            >
+              <Icon icon="lucide:share" width={15} height={15} className="text-bone-dim" />
+              More options…
+            </button>
           )}
 
-          <CommentComposer postId={postId} onAdded={onAdded} />
-        </>
+          <div className="my-1 border-t border-ink-line/60" />
+
+          {shareLinks.map((item) => (
+            <a
+              key={item.name}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium text-bone-soft transition-colors hover:bg-bone/10 hover:text-bone"
+            >
+              <Icon icon={item.icon} width={15} height={15} className="shrink-0" />
+              {item.name}
+            </a>
+          ))}
+        </div>
       )}
-    </section>
+    </div>
   );
 }
 
-function CommentRow({
+
+
+export function CommentRow({
   comment,
   viewerId,
   followingIds = [],
@@ -599,7 +769,7 @@ function CommentRow({
   );
 }
 
-function CommentComposer({
+export function CommentComposer({
   postId,
   onAdded,
 }: {

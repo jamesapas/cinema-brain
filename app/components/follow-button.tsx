@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 
 import { follow, unfollow } from "@/app/actions/follow";
 import { useSignIn, useSignedIn } from "@/app/components/session";
