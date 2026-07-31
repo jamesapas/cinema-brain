@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { Avatar } from "@/app/components/avatar";
+import { FollowButton } from "@/app/components/follow-button";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 /**
@@ -28,6 +29,12 @@ export function ProfileSidebar({
   bio,
   followers,
   following,
+  isOwner = true,
+  profileId,
+  viewerFollows = false,
+  joinedDate,
+  statsCount = 0,
+  statsAverage = "0.0",
 }: {
   displayName: string;
   username: string | null;
@@ -36,6 +43,12 @@ export function ProfileSidebar({
   bio: string | null;
   followers: number;
   following: number;
+  isOwner?: boolean;
+  profileId?: string;
+  viewerFollows?: boolean;
+  joinedDate?: string;
+  statsCount?: number;
+  statsAverage?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -54,7 +67,8 @@ export function ProfileSidebar({
     // of rated films. Self-start keeps it from stretching to the column's full
     // height and stranding Sign out at the bottom of the page.
     <aside className="lg:sticky lg:top-28 lg:h-fit lg:self-start">
-      <Link href={overviewHref} className="flex items-center gap-3.5">
+      {/* Mobile layout: small avatar + name side-by-side */}
+      <Link href={overviewHref} className="flex items-center gap-3.5 md:hidden">
         <Avatar url={avatarUrl} initials={initials} size={52} />
         <div className="min-w-0">
           <div className="truncate font-semibold text-bone">
@@ -64,11 +78,36 @@ export function ProfileSidebar({
         </div>
       </Link>
 
+      {/* Desktop layout: GitHub-style full width avatar with name below */}
+      <div className="hidden md:block">
+        <Link href={overviewHref} className="block w-full aspect-square">
+          <Avatar url={avatarUrl} initials={initials} size={296} className="w-full h-full text-4xl" />
+        </Link>
+        <div className="mt-4">
+          <h1 className="text-xl font-bold text-bone leading-tight">
+            {displayName}
+          </h1>
+          {username && (
+            <p className="text-sm text-bone-soft font-normal mt-0.5">@{username}</p>
+          )}
+        </div>
+      </div>
+
       {bio && <p className="mt-3 text-sm leading-relaxed text-bone-soft">{bio}</p>}
 
-      <Link href="/profile/settings" className="btn btn-quiet mt-5 w-full">
-        Edit profile
-      </Link>
+      {isOwner ? (
+        <Link href="/profile/settings" className="btn btn-quiet mt-5 w-full">
+          Edit profile
+        </Link>
+      ) : profileId && username ? (
+        <div className="mt-5 w-full">
+          <FollowButton
+            targetId={profileId}
+            targetUsername={username}
+            initialFollowing={viewerFollows}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-4 flex items-center gap-2">
         <Icon icon="mdi:account-multiple-outline" className="size-4 text-bone/70" />
@@ -84,28 +123,58 @@ export function ProfileSidebar({
         </Link>
       </div>
 
-      <nav aria-label="Profile sections" className="mt-7 flex flex-col gap-0.5">
-        <RailItem
-          href="/profile/watchlist"
-          icon="lucide:bookmark"
-          label="Watchlist"
-          current={pathname === "/profile/watchlist"}
-        />
-        <RailItem
-          href="/profile/favorites"
-          icon="lucide:heart"
-          label="Favorites"
-          current={pathname === "/profile/favorites"}
-        />
-        <button
-          type="button"
-          onClick={signOut}
-          className={`${RAIL_ITEM} mt-2.5 border-t border-ink-line pt-5 text-bone-soft hover:text-bone`}
-        >
-          <Icon icon="lucide:log-out" width={18} height={18} aria-hidden />
-          Sign out
-        </button>
-      </nav>
+      {!isOwner && (joinedDate || statsCount > 0) && (
+        <div className="mt-4 flex flex-col gap-2">
+          {joinedDate && (
+            <div className="flex items-center gap-2">
+              <Icon icon="lucide:calendar" className="size-4 text-bone/70" />
+              <span className="meta">Joined {joinedDate}</span>
+            </div>
+          )}
+
+          {statsCount > 0 && (
+            <>
+              <div className="flex items-center gap-2">
+                <Icon icon="lucide:clapperboard" className="size-4 text-bone/70" />
+                <span className="meta">
+                  <strong className="font-semibold text-bone">{statsCount}</strong> films rated
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Icon icon="lucide:star" className="size-4 text-bone/70" />
+                <span className="meta">
+                  <strong className="font-semibold text-bone">{statsAverage}</strong> average rating
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {isOwner && (
+        <nav aria-label="Profile sections" className="mt-7 flex flex-col gap-0.5">
+          <RailItem
+            href="/profile/watchlist"
+            icon="lucide:bookmark"
+            label="Watchlist"
+            current={pathname === "/profile/watchlist"}
+          />
+          <RailItem
+            href="/profile/favorites"
+            icon="lucide:heart"
+            label="Favorites"
+            current={pathname === "/profile/favorites"}
+          />
+          <button
+            type="button"
+            onClick={signOut}
+            className={`${RAIL_ITEM} mt-2.5 border-t border-ink-line pt-5 text-bone-soft hover:text-bone`}
+          >
+            <Icon icon="lucide:log-out" width={18} height={18} aria-hidden />
+            Sign out
+          </button>
+        </nav>
+      )}
     </aside>
   );
 }

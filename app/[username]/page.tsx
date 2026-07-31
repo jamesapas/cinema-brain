@@ -85,108 +85,21 @@ export default async function UsernamePage({ params }: PageProps) {
 
   return (
     <main className="page-container flex-1 pt-28 pb-24 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start lg:gap-14">
-      {isOwner ? (
-        <ProfileSidebar
-          displayName={name}
-          username={profile.username}
-          avatarUrl={picture}
-          initials={initials}
-          bio={profile.bio}
-          followers={counts.followers}
-          following={counts.following}
-        />
-      ) : (
-        <aside className="lg:sticky lg:top-28 lg:h-fit lg:self-start">
-          <div className="flex items-center gap-3.5">
-            <Avatar url={picture} initials={initials} size={52} />
-            <div className="min-w-0">
-              <p className="truncate font-semibold text-bone">{name}</p>
-              <p className="meta truncate !text-xs">@{profile.username}</p>
-            </div>
-          </div>
-
-          {profile.bio && (
-            <p className="mt-3 text-sm leading-relaxed text-bone-soft">{profile.bio}</p>
-          )}
-
-          <div className="mt-5 w-full">
-            <FollowButton
-              targetId={profile.id}
-              targetUsername={profile.username}
-              initialFollowing={viewerFollows}
-            />
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Icon icon="mdi:account-multiple-outline" className="size-4 text-bone/70" />
-
-            <Link
-              href={`/${profile.username}/followers`}
-              className="meta follow-count-link"
-            >
-              <strong className="font-semibold text-bone">{counts.followers}</strong> followers
-            </Link>
-
-            <span className="text-bone/40">•</span>
-
-            <Link
-              href={`/${profile.username}/following`}
-              className="meta follow-count-link"
-            >
-              <strong className="font-semibold text-bone">{counts.following}</strong> following
-            </Link>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Icon icon="lucide:calendar" className="size-4 text-bone/70" />
-              <span className="meta">Joined {joined}</span>
-            </div>
-
-            {stats.count > 0 && (
-              <>
-                <div className="flex items-center gap-2">
-                  <Icon icon="lucide:clapperboard" className="size-4 text-bone/70" />
-                  <span className="meta">
-                    <strong className="font-semibold text-bone">{stats.count}</strong> films rated
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Icon icon="lucide:star" className="size-4 text-bone/70" />
-                  <span className="meta">
-                    <strong className="font-semibold text-bone">
-                      {stats.averageStars ? `${stats.averageStars.toFixed(1)}★` : "—"}
-                    </strong>{" "}
-                    average
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Icon icon="lucide:clock" className="size-4 text-bone/70" />
-                  <span className="meta">
-                    <strong className="font-semibold text-bone">
-                      {formatWatchTime(stats.totalMinutes)}
-                    </strong>{" "}
-                    rated
-                  </span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Icon icon="lucide:sparkles" className="mt-0.5 size-4 shrink-0 text-bone/70" />
-                  <span className="meta">
-                    Mostly{" "}
-                    <strong className="font-semibold text-bone">
-                      {stats.topGenres.length > 0
-                        ? stats.topGenres
-                          .slice(0, 3)
-                          .map((entry) => entry.genre)
-                          .join(", ")
-                        : "—"}
-                    </strong>
-                  </span>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
-      )}
+      <ProfileSidebar
+        displayName={name}
+        username={profile.username}
+        avatarUrl={picture}
+        initials={initials}
+        bio={profile.bio}
+        followers={counts.followers}
+        following={counts.following}
+        isOwner={isOwner}
+        profileId={profile.id}
+        viewerFollows={viewerFollows}
+        joinedDate={joined}
+        statsCount={stats.count}
+        statsAverage={stats.averageStars ? `${stats.averageStars.toFixed(1)}★` : "—"}
+      />
 
       <div className="mt-10 flex flex-col gap-12 lg:mt-0">
         {stats.count > 0 && (
