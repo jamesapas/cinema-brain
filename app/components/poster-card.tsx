@@ -49,12 +49,14 @@ export function PosterCard({
   rating,
   size = "shelf",
   preload = false,
+  readOnly = false,
 }: {
   movie: MovieCard;
   rating: number | null;
   size?: keyof typeof SIZE;
   /** Renamed from `priority`, which Next 16 deprecated in favour of `preload`. */
   preload?: boolean;
+  readOnly?: boolean;
 }) {
   // w500 rather than w342: the card is up to 224px wide, which a 342px source
   // can't cover on a 2x display. Still w500 on phones — the card is smaller
@@ -133,7 +135,7 @@ export function PosterCard({
         <div className="mt-1.5 sm:mt-2">
           {/* "card" rather than "lg": five 22px stars are 114px, which on a
               128px phone card is the whole width. */}
-          <StarRating movieId={movie.id} rating={rating} size="card" />
+          <StarRating movieId={movie.id} rating={rating} size="card" readOnly={readOnly} />
         </div>
       </div>
     </article>

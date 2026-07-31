@@ -137,6 +137,7 @@ export default async function UsernamePage({ params }: PageProps) {
             <RatedFilmsGrid
               rated={rated}
               heading={isOwner ? "Films you’ve rated" : "Films rated"}
+              readOnly={!isOwner}
             />
 
             {notes.length > 0 && (

@@ -45,9 +45,11 @@ function sortRated(rated: RatedMovie[], sort: Sort): RatedMovie[] {
 export function RatedFilmsGrid({
   rated,
   heading,
+  readOnly = false,
 }: {
   rated: RatedMovie[];
   heading: string;
+  readOnly?: boolean;
 }) {
   const [sort, setSort] = useState<Sort>("rating-desc");
   const [genre, setGenre] = useState<string | null>(null);
@@ -121,7 +123,12 @@ export function RatedFilmsGrid({
       ) : (
         <div className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(7rem,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] [&>article]:w-full">
           {shown.map((entry) => (
-            <PosterCard key={entry.movie.id} movie={entry.movie} rating={entry.rating} />
+            <PosterCard
+              key={entry.movie.id}
+              movie={entry.movie}
+              rating={entry.rating}
+              readOnly={readOnly}
+            />
           ))}
         </div>
       )}

@@ -31,6 +31,7 @@ export function StarRating({
   rating,
   size = "sm",
   showValue = false,
+  readOnly = false,
 }: {
   movieId: number;
   /** Stored 1-10 value, or null when unrated. */
@@ -42,6 +43,7 @@ export function StarRating({
    * readout has to be rendered from in here rather than by the caller.
    */
   showValue?: boolean;
+  readOnly?: boolean;
 }) {
   const signedIn = useSignedIn();
   const signIn = useSignIn();
@@ -53,9 +55,10 @@ export function StarRating({
   // lands would be telling you the thing you can see happened hasn't.
   const [, startTransition] = useTransition();
 
-  const shown = preview ?? saved ?? 0;
+  const shown = (readOnly ? saved : (preview ?? saved)) ?? 0;
 
   function submit(value: number) {
+    if (readOnly) return;
     // Signed out, the stars are still here and still hoverable — they show
     // what the site is for. Setting one is what needs an account, so the ask
     // opens right here, over the film they were about to rate, and closing it
@@ -92,10 +95,16 @@ export function StarRating({
         <div
           role="group"
           aria-label={
-            saved === null ? "Rate this film" : `Your rating: ${saved / 2} of 5 stars`
+            saved === null
+              ? readOnly
+                ? "Rating"
+                : "Rate this film"
+              : `Rating: ${saved / 2} of 5 stars`
           }
           className="flex items-center gap-px"
-          onMouseLeave={() => setPreview(null)}
+          onMouseLeave={() => {
+            if (!readOnly) setPreview(null);
+          }}
         >
           {[1, 2, 3, 4, 5].map((star) => {
             const leftValue = star * 2 - 1;
@@ -108,23 +117,27 @@ export function StarRating({
             return (
               <span key={star} className={`relative inline-block ${SIZE_CLASS[size]}`}>
                 <StarGlyph fill={fillFor(shown, star)} />
-                {/* Two invisible hit targets per star: left half, right half. */}
-                <button
-                  type="button"
-                  aria-label={label(leftValue)}
-                  onClick={() => submit(leftValue)}
-                  onMouseEnter={() => setPreview(leftValue)}
-                  onFocus={() => setPreview(leftValue)}
-                  className="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
-                />
-                <button
-                  type="button"
-                  aria-label={label(rightValue)}
-                  onClick={() => submit(rightValue)}
-                  onMouseEnter={() => setPreview(rightValue)}
-                  onFocus={() => setPreview(rightValue)}
-                  className="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
-                />
+                {!readOnly && (
+                  <>
+                    {/* Two invisible hit targets per star: left half, right half. */}
+                    <button
+                      type="button"
+                      aria-label={label(leftValue)}
+                      onClick={() => submit(leftValue)}
+                      onMouseEnter={() => setPreview(leftValue)}
+                      onFocus={() => setPreview(leftValue)}
+                      className="absolute inset-y-0 left-0 w-1/2 cursor-pointer"
+                    />
+                    <button
+                      type="button"
+                      aria-label={label(rightValue)}
+                      onClick={() => submit(rightValue)}
+                      onMouseEnter={() => setPreview(rightValue)}
+                      onFocus={() => setPreview(rightValue)}
+                      className="absolute inset-y-0 right-0 w-1/2 cursor-pointer"
+                    />
+                  </>
+                )}
               </span>
             );
           })}
