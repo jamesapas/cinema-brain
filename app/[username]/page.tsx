@@ -2,8 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { Avatar } from "@/app/components/avatar";
-import { FollowButton } from "@/app/components/follow-button";
 import { KinoTake } from "@/app/components/kino-take";
 import { PostList } from "@/app/components/post-list";
 import { ProfileSidebar } from "@/app/components/profile-sidebar";
@@ -12,14 +10,13 @@ import { SignInPrompt } from "@/app/components/sign-in-prompt";
 import { getViewer } from "@/lib/auth/viewer";
 import { getRatedMovies } from "@/lib/movies/catalog";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
-import { getFollowCounts, isFollowing } from "@/lib/profiles/follows";
+import { getFollowCounts, getFollowingIds, isFollowing } from "@/lib/profiles/follows";
 import { getProfileByUsername } from "@/lib/profiles/queries";
-import { formatWatchTime, tasteStats, type StarBucket } from "@/lib/profiles/stats";
+import { tasteStats, type StarBucket } from "@/lib/profiles/stats";
 import { MIN_RATED_FOR_SUMMARY, summaryIsStale } from "@/lib/profiles/taste-summary";
 import type { FeedEntry } from "@/lib/social/posts";
 import { getUserEntries } from "@/lib/social/queries";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { Icon } from "@iconify/react";
 
 /**
  * Anyone's profile, by handle — one URL for the owner and every visitor.
@@ -124,7 +121,7 @@ export default async function UsernamePage({ params }: PageProps) {
         {/* Posts stream independently: `getUserEntries` is the slowest
               section (multi-step fetch + hydration). Everything above this
               line is already visible while the posts boundary is resolving. */}
-        <Suspense fallback={<PostsSkeleton isOwner={isOwner} />}>
+        <Suspense fallback={<PostsSkeleton />}>
           <ProfilePosts
             profileId={profile.id}
             viewerId={viewer?.id ?? null}
@@ -183,19 +180,33 @@ function PostsSection({
   isOwner,
   name,
   viewerId,
+  followingIds = [],
 }: {
   entries: FeedEntry[];
   isOwner: boolean;
   name: string;
   viewerId: string | null;
+  followingIds?: string[];
 }) {
   if (entries.length === 0 && !isOwner) return null;
 
+  const latestEntries = entries.slice(0, 1);
+
   return (
     <section>
-      <h2 className="text-xl font-bold text-bone">
-        {isOwner ? "Your posts" : `Posts by ${name}`}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-bone">
+          {isOwner ? "Your latest post" : `Latest post by ${name}`}
+        </h2>
+        {entries.length > 0 && (
+          <button
+            type="button"
+            className="text-sm font-medium text-bone-soft transition-colors hover:text-bone"
+          >
+            View all
+          </button>
+        )}
+      </div>
 
       {entries.length === 0 ? (
         <>
@@ -208,8 +219,8 @@ function PostsSection({
           </Link>
         </>
       ) : (
-        <div className="mt-3 max-w-2xl">
-          <PostList entries={entries} viewerId={viewerId} />
+        <div className="mt-3">
+          <PostList entries={latestEntries} viewerId={viewerId} followingIds={followingIds} />
         </div>
       )}
     </section>
@@ -357,39 +368,42 @@ async function ProfilePosts({
   name: string;
 }) {
   const supabase = await createServerSupabase();
-  const entries = await getUserEntries(supabase, profileId, viewerId);
+  const [entries, followingSet] = await Promise.all([
+    getUserEntries(supabase, profileId, viewerId),
+    viewerId ? getFollowingIds(supabase, viewerId) : Promise.resolve(new Set<string>()),
+  ]);
+
   return (
     <PostsSection
       entries={entries}
       isOwner={isOwner}
       name={name}
       viewerId={viewerId}
+      followingIds={[...followingSet]}
     />
   );
 }
 
-function PostsSkeleton({ isOwner }: { isOwner: boolean }) {
+function PostsSkeleton() {
   return (
     <section>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div className="skeleton h-6 w-28 rounded" />
       </div>
-      <div className="mt-3 max-w-2xl space-y-4">
-        {[...Array(isOwner ? 3 : 2)].map((_, i) => (
-          <div key={i} className="rounded-xl border border-ink-line p-5">
-            <div className="flex items-center gap-3">
-              <div className="skeleton size-9 shrink-0 rounded-full" />
-              <div className="space-y-1.5">
-                <div className="skeleton h-3.5 w-28 rounded" />
-                <div className="skeleton h-3 w-20 rounded" />
-              </div>
-            </div>
-            <div className="mt-4 space-y-2">
-              <div className="skeleton h-3 w-full rounded" />
-              <div className="skeleton h-3 w-3/4 rounded" />
+      <div className="mt-3">
+        <div className="rounded-xl border border-ink-line p-5">
+          <div className="flex items-center gap-3">
+            <div className="skeleton size-9 shrink-0 rounded-full" />
+            <div className="space-y-1.5">
+              <div className="skeleton h-3.5 w-28 rounded" />
+              <div className="skeleton h-3 w-20 rounded" />
             </div>
           </div>
-        ))}
+          <div className="mt-4 space-y-2">
+            <div className="skeleton h-3 w-full rounded" />
+            <div className="skeleton h-3 w-3/4 rounded" />
+          </div>
+        </div>
       </div>
     </section>
   );
