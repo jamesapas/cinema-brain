@@ -175,6 +175,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notifications: {
+        Row: {
+          actor_id: string
+          comment_id: string | null
+          created_at: string
+          id: string
+          post_id: string | null
+          read: boolean
+          recipient_id: string
+          type: "like" | "comment" | "repost" | "follow"
+        }
+        Insert: {
+          actor_id: string
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          read?: boolean
+          recipient_id: string
+          type: "like" | "comment" | "repost" | "follow"
+        }
+        Update: {
+          actor_id?: string
+          comment_id?: string | null
+          created_at?: string
+          id?: string
+          post_id?: string | null
+          read?: boolean
+          recipient_id?: string
+          type?: "like" | "comment" | "repost" | "follow"
+        }
+        Relationships: []
+      }
       post_comments: {
         Row: {
           author_id: string

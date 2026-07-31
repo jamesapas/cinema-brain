@@ -1,6 +1,7 @@
 import { AuthOverlayProvider } from "@/app/components/auth-overlay";
 import { ChatOverlayProvider } from "@/app/components/chat-overlay";
 import { MovieListsProvider } from "@/app/components/movie-lists";
+import { NotificationsOverlayProvider } from "@/app/components/notifications-overlay";
 import { SearchOverlayProvider } from "@/app/components/search-overlay";
 import { SessionProvider } from "@/app/components/session";
 import { SiteHeader } from "@/app/components/site-header";
@@ -57,20 +58,22 @@ export async function AppShell({
         }
       >
         <MovieListsProvider membership={membership}>
-          <ChatOverlayProvider>
-            <SearchOverlayProvider>
-              <div className="flex min-h-full flex-1 flex-col">
-                <SiteHeader
-                  email={viewer?.email ?? null}
-                  username={viewer?.username ?? null}
-                  displayName={viewer?.displayName ?? null}
-                  avatarUrl={viewer?.avatarUrl ?? null}
-                  initials={viewer?.initials ?? null}
-                />
-                {children}
-              </div>
-            </SearchOverlayProvider>
-          </ChatOverlayProvider>
+          <NotificationsOverlayProvider>
+            <ChatOverlayProvider>
+              <SearchOverlayProvider>
+                <div className="flex min-h-full flex-1 flex-col">
+                  <SiteHeader
+                    email={viewer?.email ?? null}
+                    username={viewer?.username ?? null}
+                    displayName={viewer?.displayName ?? null}
+                    avatarUrl={viewer?.avatarUrl ?? null}
+                    initials={viewer?.initials ?? null}
+                  />
+                  {children}
+                </div>
+              </SearchOverlayProvider>
+            </ChatOverlayProvider>
+          </NotificationsOverlayProvider>
         </MovieListsProvider>
       </SessionProvider>
     </AuthOverlayProvider>

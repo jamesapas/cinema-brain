@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { Avatar } from "@/app/components/avatar";
 import { KinoLogo } from "@/app/components/kino-logo";
+import { useNotificationsOverlay } from "@/app/components/notifications-overlay";
 import { useSearchOverlay } from "@/app/components/search-overlay";
 import { useSignIn } from "@/app/components/session";
 
@@ -111,13 +112,21 @@ function SearchButton() {
 }
 
 function NotificationButton() {
+  const { toggle, unreadCount } = useNotificationsOverlay();
+
   return (
     <button
       type="button"
-      aria-label="Notifications"
-      className={ICON_CONTROL}
+      onClick={toggle}
+      aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+      className={`relative ${ICON_CONTROL}`}
     >
       <Icon icon="lucide:bell" width={NAV_ICON_SIZE} height={NAV_ICON_SIZE} aria-hidden />
+      {unreadCount > 0 && (
+        <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-lamp px-1 text-[10px] font-bold text-ink ring-2 ring-ink">
+          {unreadCount > 99 ? "99+" : unreadCount}
+        </span>
+      )}
     </button>
   );
 }
