@@ -1,15 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 
+import { CHAT_MODEL } from "@/lib/agent/config";
 import { buildTools, type ShownMovie } from "@/lib/agent/tools";
 import type { Database } from "@/lib/database.types";
 import { serverEnv } from "@/lib/env";
 
-/**
- * Model is overridable because this account has newer models than the one
- * defaulted to here, and their tool-selection behavior differs.
- */
-export const CHAT_MODEL = process.env.CHAT_MODEL ?? "gpt-5.5";
+export { CHAT_MODEL };
 
 /** Safety net for the tool loop; a normal turn uses 1-4 iterations. */
 const MAX_ITERATIONS = 12;

@@ -205,3 +205,7 @@ create trigger on_follow_deleted
   after delete on public.follows
   for each row
   execute function public.handle_unfollow_notification();
+
+-- Enable Supabase Realtime for notifications
+alter table public.notifications replica identity full;
+alter publication supabase_realtime add table public.notifications;

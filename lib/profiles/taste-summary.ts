@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-import { CHAT_MODEL } from "@/lib/agent/chat";
+import { CHAT_MODEL } from "@/lib/agent/config";
 import { serverEnv } from "@/lib/env";
 import type { RatedMovie } from "@/lib/movies/catalog";
 import { tasteStats } from "@/lib/profiles/stats";

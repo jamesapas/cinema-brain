@@ -12,14 +12,16 @@ import {
 
 import {
   fetchNotificationsAction,
+  getUnreadCountAction,
   markAllAsReadAction,
   markAsReadAction,
 } from "@/app/actions/notifications";
 import { Avatar } from "@/app/components/avatar";
-import { useSignIn, useSignedIn } from "@/app/components/session";
+import { useSignIn, useSignedIn, useSessionUser } from "@/app/components/session";
 
 import type { NotificationItem, NotificationType } from "@/lib/notifications/types";
 import { relativeTime } from "@/lib/social/posts";
+import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 type NotificationsOverlayContextValue = {
   isOpen: boolean;
@@ -46,6 +48,7 @@ export function useNotificationsOverlay() {
 
 export function NotificationsOverlayProvider({ children }: { children: React.ReactNode }) {
   const signedIn = useSignedIn();
+  const user = useSessionUser();
   const signIn = useSignIn();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -78,6 +81,65 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
     return () => {
       cancelled = true;
     };
+  }, [signedIn]);
+
+  // Subscribe to real-time notification changes via Supabase Realtime
+  useEffect(() => {
+    if (!signedIn || !user?.id) return;
+
+    const userId = user.id;
+    const supabase = createBrowserSupabase();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    async function setupRealtime() {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) {
+        supabase.realtime.setAuth(data.session.access_token);
+      }
+
+      channel = supabase
+        .channel(`user-notifications-${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `recipient_id=eq.${userId}`,
+          },
+          async () => {
+            const res = await fetchNotificationsAction();
+            if (res.ok) {
+              setNotifications(res.notifications);
+              setUnreadCount(res.unreadCount);
+              setHasLoaded(true);
+            }
+          },
+        )
+        .subscribe();
+    }
+
+    void setupRealtime();
+
+    return () => {
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
+    };
+  }, [signedIn, user?.id]);
+
+  // Fast fallback interval polling (every 5 seconds) to ensure header badge stays updated
+  useEffect(() => {
+    if (!signedIn) return;
+
+    const intervalId = setInterval(async () => {
+      const res = await getUnreadCountAction();
+      if (res.ok) {
+        setUnreadCount(res.unreadCount);
+      }
+    }, 5000);
+
+    return () => clearInterval(intervalId);
   }, [signedIn]);
 
   const open = useCallback(() => {
