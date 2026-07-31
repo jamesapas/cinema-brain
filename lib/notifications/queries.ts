@@ -7,14 +7,21 @@ import type { NotificationItem, NotificationActor } from "./types";
 export async function getNotifications(
   supabase: SupabaseClient<Database>,
   recipientId: string,
-  limit = 30,
+  limit = 10,
+  before?: string,
 ): Promise<NotificationItem[]> {
-  const { data: rows, error } = await supabase
+  let query = supabase
     .from("notifications")
     .select("id, type, read, created_at, actor_id, post_id, comment_id")
     .eq("recipient_id", recipientId)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (before) {
+    query = query.lt("created_at", before);
+  }
+
+  const { data: rows, error } = await query;
 
   if (error || !rows || rows.length === 0) {
     if (error) console.error("[getNotifications]", error);

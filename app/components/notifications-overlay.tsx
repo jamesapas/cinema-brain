@@ -28,12 +28,15 @@ type NotificationsOverlayContextValue = {
   unreadCount: number;
   notifications: NotificationItem[];
   loading: boolean;
+  loadingMore: boolean;
+  hasMore: boolean;
   error: string | null;
   toggle: () => void;
   open: () => void;
   close: () => void;
   markAllAsRead: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
+  loadMore: () => Promise<void>;
 };
 
 const NotificationsOverlayContext = createContext<NotificationsOverlayContextValue | null>(null);
@@ -55,6 +58,8 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
   const [unreadCount, setUnreadCount] = useState(0);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Pre-fetch notifications in the background on load so opening is instant.
@@ -65,11 +70,12 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
     async function init() {
       setLoading(true);
       setError(null);
-      const res = await fetchNotificationsAction();
+      const res = await fetchNotificationsAction(10);
       if (!cancelled) {
         if (res.ok) {
           setNotifications(res.notifications);
           setUnreadCount(res.unreadCount);
+          setHasMore(res.hasMore);
           setHasLoaded(true);
         } else {
           setError(res.error);
@@ -108,10 +114,11 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
             filter: `recipient_id=eq.${userId}`,
           },
           async () => {
-            const res = await fetchNotificationsAction();
+            const res = await fetchNotificationsAction(10);
             if (res.ok) {
               setNotifications(res.notifications);
               setUnreadCount(res.unreadCount);
+              setHasMore(res.hasMore);
               setHasLoaded(true);
             }
           },
@@ -128,18 +135,26 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
     };
   }, [signedIn, user?.id]);
 
-  // Fast fallback interval polling (every 5 seconds) to ensure header badge stays updated
+  // Refetch unread count when user returns to the tab/window
   useEffect(() => {
     if (!signedIn) return;
 
-    const intervalId = setInterval(async () => {
-      const res = await getUnreadCountAction();
-      if (res.ok) {
-        setUnreadCount(res.unreadCount);
+    const handleFocus = async () => {
+      if (document.visibilityState === "visible") {
+        const res = await getUnreadCountAction();
+        if (res.ok) {
+          setUnreadCount(res.unreadCount);
+        }
       }
-    }, 5000);
+    };
 
-    return () => clearInterval(intervalId);
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
   }, [signedIn]);
 
   const open = useCallback(() => {
@@ -165,11 +180,12 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
     if (!isOpen || !signedIn) return;
 
     async function syncNotifications() {
-      const res = await fetchNotificationsAction();
+      const res = await fetchNotificationsAction(10);
       if (!cancelled) {
         if (res.ok) {
           setNotifications(res.notifications);
           setUnreadCount(res.unreadCount);
+          setHasMore(res.hasMore);
           setHasLoaded(true);
           setError(null);
         } else if (!hasLoaded) {
@@ -182,6 +198,24 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
       cancelled = true;
     };
   }, [isOpen, signedIn, hasLoaded]);
+
+  const loadMore = useCallback(async () => {
+    if (!signedIn || loadingMore || !hasMore || notifications.length === 0) return;
+
+    setLoadingMore(true);
+    const lastItem = notifications[notifications.length - 1];
+    const res = await fetchNotificationsAction(10, lastItem.createdAt);
+
+    if (res.ok) {
+      setNotifications((prev) => {
+        const existingIds = new Set(prev.map((n) => n.id));
+        const newItems = res.notifications.filter((n) => !existingIds.has(n.id));
+        return [...prev, ...newItems];
+      });
+      setHasMore(res.hasMore);
+    }
+    setLoadingMore(false);
+  }, [signedIn, loadingMore, hasMore, notifications]);
 
   const markAllAsRead = useCallback(async () => {
     setNotifications((current) => current.map((item) => ({ ...item, read: true })));
@@ -223,12 +257,15 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
         unreadCount,
         notifications,
         loading: loading && !hasLoaded,
+        loadingMore,
+        hasMore,
         error,
         toggle,
         open,
         close,
         markAllAsRead,
         markAsRead,
+        loadMore,
       }}
     >
       {children}
@@ -239,8 +276,15 @@ export function NotificationsOverlayProvider({ children }: { children: React.Rea
 
 function NotificationsOverlay({ onClose }: { onClose: () => void }) {
   const router = useRouter();
-  const { notifications, loading, error, markAllAsRead, markAsRead } =
+  const { notifications, loading, loadingMore, loadMore, error, markAllAsRead, markAsRead } =
     useNotificationsOverlay();
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 60) {
+      void loadMore();
+    }
+  };
 
   async function handleNotificationClick(item: NotificationItem) {
     if (!item.read) {
@@ -271,7 +315,7 @@ function NotificationsOverlay({ onClose }: { onClose: () => void }) {
           role="dialog"
           aria-modal="true"
           aria-label="Notifications"
-          className="palette-in pointer-events-auto absolute top-[4.25rem] right-4 sm:right-6 lg:right-8 flex max-h-[calc(100vh-5.5rem)] w-[calc(100vw-2rem)] sm:w-[420px] flex-col overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl shadow-black/80"
+          className="palette-in pointer-events-auto absolute top-[4.25rem] right-4 sm:right-6 lg:right-8 flex max-h-[min(32rem,calc(100vh-5.5rem))] w-[calc(100vw-2rem)] sm:w-[420px] flex-col overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl shadow-black/80"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-ink-line px-5 py-4">
@@ -298,10 +342,13 @@ function NotificationsOverlay({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Content list */}
-          <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
+          <div
+            onScroll={handleScroll}
+            className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-2"
+          >
             {loading ? (
               <div className="space-y-1 p-1">
-                {Array.from({ length: 4 }).map((_, index) => (
+                {Array.from({ length: 5 }).map((_, index) => (
                   <div key={index} className="flex items-start gap-3 rounded-lg p-3">
                     <div className="skeleton h-9 w-9 shrink-0 rounded-full" />
                     <div className="min-w-0 flex-1 space-y-2 py-0.5">
@@ -335,9 +382,8 @@ function NotificationsOverlay({ onClose }: { onClose: () => void }) {
                     <button
                       type="button"
                       onClick={() => handleNotificationClick(item)}
-                      className={`group flex w-full items-start gap-3 rounded-lg p-3 text-left transition ${
-                        item.read ? "hover:bg-bone/5" : "bg-lamp/10 hover:bg-lamp/15"
-                      }`}
+                      className={`group flex w-full items-start gap-3 rounded-lg p-3 text-left transition ${item.read ? "hover:bg-bone/5" : "bg-lamp/10 hover:bg-lamp/15"
+                        }`}
                     >
                       <div className="relative shrink-0">
                         <Avatar
@@ -372,6 +418,22 @@ function NotificationsOverlay({ onClose }: { onClose: () => void }) {
                     </button>
                   </li>
                 ))}
+                {loadingMore && (
+                  <li className="space-y-1 p-1">
+                    {Array.from({ length: 2 }).map((_, index) => (
+                      <div key={index} className="flex items-start gap-3 rounded-lg p-3">
+                        <div className="skeleton h-9 w-9 shrink-0 rounded-full" />
+                        <div className="min-w-0 flex-1 space-y-2 py-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="skeleton h-3.5 w-28 rounded" />
+                            <div className="skeleton h-3 w-8 rounded" />
+                          </div>
+                          <div className="skeleton h-3 w-3/4 rounded" />
+                        </div>
+                      </div>
+                    ))}
+                  </li>
+                )}
               </ul>
             )}
           </div>

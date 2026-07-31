@@ -5,7 +5,7 @@ import { getNotifications, getUnreadNotificationCount } from "@/lib/notification
 import type { NotificationItem } from "@/lib/notifications/types";
 
 export type NotificationsFetchResult =
-  | { ok: true; notifications: NotificationItem[]; unreadCount: number }
+  | { ok: true; notifications: NotificationItem[]; unreadCount: number; hasMore: boolean }
   | { ok: false; error: string };
 
 export type UnreadCountResult =
@@ -14,7 +14,10 @@ export type UnreadCountResult =
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-export async function fetchNotificationsAction(): Promise<NotificationsFetchResult> {
+export async function fetchNotificationsAction(
+  limit = 10,
+  before?: string,
+): Promise<NotificationsFetchResult> {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -23,11 +26,14 @@ export async function fetchNotificationsAction(): Promise<NotificationsFetchResu
   if (!user) return { ok: false, error: "Sign in to view notifications." };
 
   try {
-    const [notifications, unreadCount] = await Promise.all([
-      getNotifications(supabase, user.id),
+    const [rawNotifications, unreadCount] = await Promise.all([
+      getNotifications(supabase, user.id, limit + 1, before),
       getUnreadNotificationCount(supabase, user.id),
     ]);
-    return { ok: true, notifications, unreadCount };
+    const hasMore = rawNotifications.length > limit;
+    const notifications = hasMore ? rawNotifications.slice(0, limit) : rawNotifications;
+
+    return { ok: true, notifications, unreadCount, hasMore };
   } catch (cause) {
     console.error("[fetchNotificationsAction]", cause);
     return { ok: false, error: "Couldn't load notifications." };
