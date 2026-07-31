@@ -4,6 +4,7 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { createPortal } from "react-dom";
 
 import {
   addComment,
@@ -496,16 +497,15 @@ export function PostOptionsControl({
   }, [menuOpen]);
 
   useEffect(() => {
-    if (!showDeleteModal && !showShareModal) return;
+    if (!showShareModal) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        setShowDeleteModal(false);
         setShowShareModal(false);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showDeleteModal, showShareModal]);
+  }, [showShareModal]);
 
   return (
     <>
@@ -578,55 +578,107 @@ export function PostOptionsControl({
         />
       )}
 
-      {showDeleteModal && onDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <button
-            type="button"
-            aria-label="Close modal"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowDeleteModal(false);
-            }}
-            className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
-          />
-
-          <div
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Delete post"
-            className="palette-in relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-6 space-y-4"
-          >
-            <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-bone">Delete post?</h3>
-              <p className="text-sm leading-relaxed text-bone-soft">
-                This action cannot be undone. This post will be permanently removed from your profile and feed.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="btn btn-quiet !text-xs !py-2 !px-4 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDeleteModal(false);
-                  onDeleteConfirm();
-                }}
-                className="btn !bg-ember !text-bone hover:!bg-ember/85 !text-xs !py-2 !px-4 cursor-pointer"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+      {onDeleteConfirm && (
+        <DeleteConfirmModal
+          isOpen={showDeleteModal}
+          title="Delete post?"
+          description="This action cannot be undone. This post will be permanently removed from your profile and feed."
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={onDeleteConfirm}
+        />
       )}
     </>
+  );
+}
+
+const emptySubscribe = () => () => {};
+function useIsClient() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
+
+/**
+ * Shared confirmation modal dialog for delete operations (posts, comments, etc.).
+ */
+export function DeleteConfirmModal({
+  isOpen,
+  title,
+  description,
+  onClose,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  title: string;
+  description: string;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const isClient = useIsClient();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !isClient) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+      <button
+        type="button"
+        aria-label="Close modal"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
+      />
+
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="palette-in relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-6 space-y-4"
+      >
+        <div className="space-y-1.5">
+          <h3 className="text-base font-bold text-bone">{title}</h3>
+          <p className="text-sm leading-relaxed text-bone-soft">{description}</p>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="btn btn-quiet !text-xs !py-2 !px-4 cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+              onConfirm();
+            }}
+            className="btn !bg-ember !text-bone hover:!bg-ember/85 !text-xs !py-2 !px-4 cursor-pointer"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -704,8 +756,12 @@ export function ShareModal({
     },
   ];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+  const isClient = useIsClient();
+
+  if (!isClient) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
       <button
         type="button"
         aria-label="Close modal"
@@ -778,7 +834,8 @@ export function ShareModal({
           ))}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -989,15 +1046,6 @@ function CommentDeleteControl({
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [menuOpen, setMenuOpen]);
 
-  useEffect(() => {
-    if (!showConfirmModal) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setShowConfirmModal(false);
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showConfirmModal]);
-
   return (
     <>
       <div ref={ref} className={`relative ml-auto shrink-0 inline-block ${menuOpen ? "z-50" : ""}`}>
@@ -1045,54 +1093,13 @@ function CommentDeleteControl({
         )}
       </div>
 
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <button
-            type="button"
-            aria-label="Close modal"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowConfirmModal(false);
-            }}
-            className="scrim-in fixed inset-0 bg-ink/70 backdrop-blur-md"
-          />
-
-          <div
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Delete comment"
-            className="palette-in relative z-10 w-full max-w-sm overflow-hidden rounded-xl border border-ink-line bg-ink-raised shadow-2xl p-6 space-y-4"
-          >
-            <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-bone">Delete comment?</h3>
-              <p className="text-sm leading-relaxed text-bone-soft">
-                This action cannot be undone. This comment will be permanently removed.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="btn btn-quiet !text-xs !py-2 !px-4 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConfirmModal(false);
-                  onConfirm();
-                }}
-                className="btn !bg-ember !text-bone hover:!bg-ember/85 !text-xs !py-2 !px-4 cursor-pointer"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={showConfirmModal}
+        title="Delete comment?"
+        description="This action cannot be undone. This comment will be permanently removed."
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={onConfirm}
+      />
     </>
   );
 }
