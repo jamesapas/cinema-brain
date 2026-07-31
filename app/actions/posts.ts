@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
+import type { MovieCard } from "@/lib/movies/images";
 import { getComments } from "@/lib/social/queries";
 import {
-  MAX_POST_MOVIES,
   commentProblem,
   postProblem,
   type PostComment,
@@ -54,16 +54,13 @@ function revalidatePostSurfaces() {
  * the person who wrote it.
  */
 export async function createPost(body: string, movieIds: number[]): Promise<PostResult> {
-  const problem = postProblem(body);
-  if (problem) return { ok: false, error: problem };
-
   // Deduped before the cap, so naming the same film twice doesn't spend a slot.
   const films = [...new Set(movieIds)].filter(
     (id) => Number.isInteger(id) && id > 0,
   );
-  if (films.length > MAX_POST_MOVIES) {
-    return { ok: false, error: `Up to ${MAX_POST_MOVIES} films per post.` };
-  }
+
+  const problem = postProblem(body, films.length);
+  if (problem) return { ok: false, error: problem };
 
   const supabase = await createServerSupabase();
   const {
@@ -183,8 +180,16 @@ async function setReaction(
  * whole conversation. The author is the caller, so the profile it needs is one
  * lookup rather than the join `getComments` does for a page's worth of them.
  */
-export async function addComment(postId: string, body: string): Promise<CommentResult> {
-  const problem = commentProblem(body);
+export async function addComment(
+  postId: string,
+  body: string,
+  movieIds: number[] = [],
+): Promise<CommentResult> {
+  const films = [...new Set(movieIds)].filter(
+    (id) => Number.isInteger(id) && id > 0,
+  );
+
+  const problem = commentProblem(body, films.length);
   if (problem) return { ok: false, error: problem };
 
   const supabase = await createServerSupabase();
@@ -211,6 +216,34 @@ export async function addComment(postId: string, body: string): Promise<CommentR
     return { ok: false, error: "Couldn't post that reply. Try again." };
   }
 
+  let attachedMovies: MovieCard[] = [];
+
+  if (films.length > 0) {
+    const { error: filmsError } = await supabase.from("post_comment_movies").insert(
+      films.map((movieId, index) => ({
+        comment_id: comment.id,
+        movie_id: movieId,
+        position: index,
+      })),
+    );
+
+    if (filmsError) {
+      console.error("[addComment] films", filmsError);
+      await supabase.from("post_comments").delete().eq("id", comment.id);
+      return { ok: false, error: "Couldn't attach those films. Try again." };
+    }
+
+    const { data: movieRows } = await supabase
+      .from("movies")
+      .select("id, title, tagline, release_year, genres, runtime, vote_average, vote_count, overview, poster_path, backdrop_path")
+      .in("id", films);
+
+    if (movieRows) {
+      const byId = new Map(movieRows.map((m) => [m.id, m as unknown as MovieCard]));
+      attachedMovies = films.map((id) => byId.get(id)).filter((m): m is MovieCard => Boolean(m));
+    }
+  }
+
   revalidatePath("/post/[id]", "page");
 
   return {
@@ -220,6 +253,7 @@ export async function addComment(postId: string, body: string): Promise<CommentR
       body: comment.body,
       createdAt: comment.created_at,
       author,
+      movies: attachedMovies,
       // They just wrote it, so of course they can remove it.
       deletableByViewer: true,
     },

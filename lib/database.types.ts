@@ -207,6 +207,39 @@ export type Database = {
           },
         ]
       }
+      post_comment_movies: {
+        Row: {
+          comment_id: string
+          movie_id: number
+          position: number
+        }
+        Insert: {
+          comment_id: string
+          movie_id: number
+          position?: number
+        }
+        Update: {
+          comment_id?: string
+          movie_id?: number
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_comment_movies_comment_id_fkey"
+            columns: ["comment_id"]
+            isOneToOne: false
+            referencedRelation: "post_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comment_movies_movie_id_fkey"
+            columns: ["movie_id"]
+            isOneToOne: false
+            referencedRelation: "movies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_likes: {
         Row: {
           created_at: string

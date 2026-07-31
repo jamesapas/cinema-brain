@@ -142,7 +142,7 @@ function PostModal({
 
   const trimmed = body.trim();
   const tooLong = trimmed.length > MAX_POST_LENGTH;
-  const canPost = trimmed.length > 0 && !tooLong && !pending;
+  const canPost = (trimmed.length > 0 || films.length > 0) && !tooLong && !pending;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -258,11 +258,21 @@ function PostModal({
               {films.length >= MAX_POST_MOVIES
                 ? `${MAX_POST_MOVIES} films limit`
                 : films.length > 0
-                  ? "Add another film"
+                  ? `Add film (${films.length}/${MAX_POST_MOVIES})`
                   : "Add a film"}
             </button>
 
             <div className="ml-auto flex items-center gap-3">
+              {films.length > 0 && (
+                <span
+                  className={`meta tabular-nums text-xs ${
+                    films.length >= MAX_POST_MOVIES ? "!text-ember font-semibold" : "text-bone-dim/70"
+                  }`}
+                >
+                  {films.length}/{MAX_POST_MOVIES} films
+                </span>
+              )}
+
               {trimmed.length > 0 && (
                 <span
                   className={`meta tabular-nums text-xs ${
@@ -291,7 +301,7 @@ function PostModal({
 }
 
 /** An attached film, as a chip you can take back off. */
-function AttachedFilm({ film, onRemove }: { film: MovieCard; onRemove: () => void }) {
+export function AttachedFilm({ film, onRemove }: { film: MovieCard; onRemove: () => void }) {
   const src = posterUrl(film.poster_path, "w342");
 
   return (
@@ -322,7 +332,7 @@ function AttachedFilm({ film, onRemove }: { film: MovieCard; onRemove: () => voi
  * screen and closes by taking you to a film page, which is the opposite of what
  * someone mid-sentence wants.
  */
-function FilmPicker({
+export function FilmPicker({
   chosenIds,
   onChoose,
   onClose,

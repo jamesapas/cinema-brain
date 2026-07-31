@@ -25,7 +25,7 @@ export const MAX_COMMENT_LENGTH = 500;
  *
  * Four because that's what fits as one row of posters at a phone's width.
  */
-export const MAX_POST_MOVIES = 4;
+export const MAX_POST_MOVIES = 10;
 
 /** Who wrote it. The same four columns `FollowProfile` carries, for the same reason. */
 export type PostAuthor = {
@@ -55,6 +55,8 @@ export type PostComment = {
   body: string;
   createdAt: string;
   author: PostAuthor;
+  /** In the order the author attached them. Empty for a comment about nothing in particular. */
+  movies: MovieCard[];
   /** Whether the viewer may remove it: they wrote it, or they own the post. */
   deletableByViewer: boolean;
 };
@@ -115,21 +117,29 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
 }
 
 /** The reason a post won't do, or null when it will. Phrased for a composer. */
-export function postProblem(body: string): string | null {
+export function postProblem(body: string, movieCount = 0): string | null {
   const trimmed = body.trim();
-  if (trimmed.length === 0) return "Write something first.";
+  if (trimmed.length === 0 && movieCount === 0) return "Write something or attach a film first.";
   if (trimmed.length > MAX_POST_LENGTH) {
     return `Keep it to ${MAX_POST_LENGTH} characters or fewer.`;
+  }
+  if (movieCount > MAX_POST_MOVIES) {
+    return `Up to ${MAX_POST_MOVIES} films per post.`;
   }
   return null;
 }
 
+export const MAX_COMMENT_MOVIES = 10;
+
 /** The same, for a reply. Separate because the limit and the wording differ. */
-export function commentProblem(body: string): string | null {
+export function commentProblem(body: string, movieCount = 0): string | null {
   const trimmed = body.trim();
-  if (trimmed.length === 0) return "Write something first.";
+  if (trimmed.length === 0 && movieCount === 0) return "Write something or attach a film first.";
   if (trimmed.length > MAX_COMMENT_LENGTH) {
     return `Keep it to ${MAX_COMMENT_LENGTH} characters or fewer.`;
+  }
+  if (movieCount > MAX_COMMENT_MOVIES) {
+    return `Up to ${MAX_COMMENT_MOVIES} films per comment.`;
   }
   return null;
 }

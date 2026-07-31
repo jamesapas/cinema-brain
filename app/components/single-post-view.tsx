@@ -210,9 +210,11 @@ export function SinglePostView({
           </header>
 
           {/* Post Body Text */}
-          <p className="mt-6 text-base sm:text-lg leading-relaxed break-words whitespace-pre-wrap text-bone">
-            {post.body}
-          </p>
+          {post.body.trim().length > 0 && (
+            <p className="mt-6 text-base sm:text-lg leading-relaxed break-words whitespace-pre-wrap text-bone">
+              {post.body}
+            </p>
+          )}
 
           {/* Movies attached to the post */}
           {post.movies?.length > 0 && (

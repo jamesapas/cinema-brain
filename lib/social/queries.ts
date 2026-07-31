@@ -328,6 +328,8 @@ export async function getPost(
   return (await hydratePosts(supabase, [data], viewerId)).get(data.id) ?? null;
 }
 
+const COMMENT_SELECT = `id, author_id, body, created_at, post_comment_movies(position, movies(${CARD_SELECT}))`;
+
 /**
  * A post's replies, oldest first — the order a conversation happened in.
  *
@@ -344,24 +346,38 @@ export async function getComments(
 ): Promise<PostComment[]> {
   const { data, error } = await supabase
     .from("post_comments")
-    .select("id, author_id, body, created_at")
+    .select(COMMENT_SELECT)
     .eq("post_id", postId)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`Failed to read comments: ${error.message}`);
 
-  const rows = data ?? [];
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    author_id: string;
+    body: string;
+    created_at: string;
+    post_comment_movies: { position: number; movies: MovieCard | null }[];
+  }[];
+
   const authors = await authorsByIds(supabase, [...new Set(rows.map((row) => row.author_id))]);
 
   const comments: PostComment[] = [];
   for (const row of rows) {
     const author = authors.get(row.author_id);
     if (!author) continue;
+
+    const movies = [...(row.post_comment_movies ?? [])]
+      .sort((a, b) => a.position - b.position)
+      .map((entry) => entry.movies)
+      .filter((movie): movie is MovieCard => movie !== null);
+
     comments.push({
       id: row.id,
       body: row.body,
       createdAt: row.created_at,
       author,
+      movies,
       deletableByViewer:
         viewerId !== null && (viewerId === row.author_id || viewerId === postAuthorId),
     });

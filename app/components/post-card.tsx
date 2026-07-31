@@ -15,11 +15,14 @@ import {
 } from "@/app/actions/posts";
 import { Avatar } from "@/app/components/avatar";
 import { FollowButton } from "@/app/components/follow-button";
+import { AttachedFilm, FilmPicker } from "@/app/components/post-composer";
 import { PostMovies } from "@/app/components/post-movies";
 import { useSignIn, useSignedIn, useSessionUser } from "@/app/components/session";
+import type { MovieCard } from "@/lib/movies/images";
 import { avatarUrl, displayNameFor, initialsFor } from "@/lib/profiles/avatar";
 import {
   MAX_COMMENT_LENGTH,
+  MAX_COMMENT_MOVIES,
   relativeTime,
   type FeedEntry,
   type Post,
@@ -213,9 +216,11 @@ export function PostCard({
             </div>
           </header>
 
-          <p className="mt-1.5 leading-relaxed break-words whitespace-pre-wrap text-bone">
-            {post.body}
-          </p>
+          {post.body.trim().length > 0 && (
+            <p className="mt-1.5 leading-relaxed break-words whitespace-pre-wrap text-bone">
+              {post.body}
+            </p>
+          )}
 
           <PostMovies movies={post.movies} />
 
@@ -1150,9 +1155,17 @@ export function CommentRow({
           )}
         </div>
 
-        <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-bone-soft">
-          {comment.body}
-        </p>
+        {comment.body.trim().length > 0 && (
+          <p className="mt-0.5 text-sm leading-relaxed break-words whitespace-pre-wrap text-bone-soft">
+            {comment.body}
+          </p>
+        )}
+
+        {comment.movies && comment.movies.length > 0 && (
+          <div className="mt-2">
+            <PostMovies movies={comment.movies} />
+          </div>
+        )}
 
         {error && (
           <p role="alert" className="meta mt-1 !text-ember text-xs">
@@ -1176,6 +1189,8 @@ export function CommentComposer({
   const user = useSessionUser();
 
   const [body, setBody] = useState("");
+  const [films, setFilms] = useState<MovieCard[]>([]);
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1198,14 +1213,17 @@ export function CommentComposer({
   function submit(event: React.FormEvent) {
     event.preventDefault();
     const text = body.trim();
-    if (!text || pending) return;
+    if ((!text && films.length === 0) || pending) return;
 
     setError(null);
     startTransition(async () => {
-      const result = await addComment(postId, text);
+      const filmIds = films.map((f) => f.id);
+      const result = await addComment(postId, text, filmIds);
       if (result.ok) {
         onAdded(result.comment);
         setBody("");
+        setFilms([]);
+        setPicking(false);
         inputRef.current?.focus();
       } else {
         setError(result.error);
@@ -1213,51 +1231,123 @@ export function CommentComposer({
     });
   }
 
-  return (
-    <form onSubmit={submit} className="flex items-center gap-2.5 pt-1">
-      <Avatar
-        url={user?.avatarUrl ?? null}
-        initials={user?.initials ?? "?"}
-        size={28}
-        className="shrink-0"
-      />
-      <input
-        ref={inputRef}
-        type="text"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        maxLength={MAX_COMMENT_LENGTH}
-        placeholder="Write a comment…"
-        aria-label="Write a comment"
-        className="h-9 min-w-0 flex-1 rounded-lg border border-ink-line bg-bone/8 px-3.5 text-xs sm:text-sm text-bone transition-colors placeholder:text-bone-dim focus:outline-none focus-visible:outline-none composer-input"
-      />
+  const canSubmit = (body.trim().length > 0 || films.length > 0) && !pending;
 
-      {body.length > 0 && (
-        <span
-          className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
-            body.length >= MAX_COMMENT_LENGTH - 20
-              ? "!text-ember font-semibold"
-              : "text-bone-dim/70"
-          }`}
-        >
-          {body.length}/{MAX_COMMENT_LENGTH}
-        </span>
+  return (
+    <div className="pt-1 space-y-2">
+      {films.length > 0 && (
+        <div className="flex items-center justify-between gap-2">
+          <ul className="flex flex-wrap gap-2 min-w-0 flex-1">
+            {films.map((film) => (
+              <li key={film.id}>
+                <AttachedFilm
+                  film={film}
+                  onRemove={() =>
+                    setFilms((current) => current.filter((entry) => entry.id !== film.id))
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+          <span
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
+              films.length >= MAX_COMMENT_MOVIES
+                ? "!text-ember font-semibold"
+                : "text-bone-dim/70"
+            }`}
+          >
+            {films.length}/{MAX_COMMENT_MOVIES} films
+          </span>
+        </div>
       )}
 
-      <button
-        type="submit"
-        disabled={body.trim().length === 0 || pending}
-        aria-label="Send comment"
-        className="grid size-9 shrink-0 place-items-center rounded-lg border border-bone/10 bg-bone/10 text-bone transition-all hover:bg-bone/20 active:scale-95 disabled:opacity-40 !p-0"
-      >
-        <Icon icon="lucide:send" width={16} height={16} />
-      </button>
+      {picking && (
+        <FilmPicker
+          chosenIds={films.map((film) => film.id)}
+          onChoose={(film) => {
+            setFilms((current) =>
+              current.some((entry) => entry.id === film.id)
+                ? current
+                : [...current, film],
+            );
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+
+      <form onSubmit={submit} className="flex items-center gap-2">
+        <Avatar
+          url={user?.avatarUrl ?? null}
+          initials={user?.initials ?? "?"}
+          size={28}
+          className="shrink-0"
+        />
+        <input
+          ref={inputRef}
+          type="text"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          maxLength={MAX_COMMENT_LENGTH}
+          placeholder="Write a comment…"
+          aria-label="Write a comment"
+          className="h-9 min-w-0 flex-1 rounded-lg border border-ink-line bg-bone/8 px-3.5 text-xs sm:text-sm text-bone transition-colors placeholder:text-bone-dim focus:outline-none focus-visible:outline-none composer-input"
+        />
+
+        <button
+          type="button"
+          onClick={() => setPicking((current) => !current)}
+          disabled={films.length >= MAX_COMMENT_MOVIES}
+          title={
+            films.length >= MAX_COMMENT_MOVIES
+              ? `Limit of ${MAX_COMMENT_MOVIES} films reached`
+              : "Attach film to comment"
+          }
+          aria-label="Attach film"
+          className="grid size-9 shrink-0 place-items-center rounded-lg border border-ink-line bg-bone/8 text-bone-soft transition-colors hover:bg-bone/15 hover:text-bone disabled:opacity-40 cursor-pointer"
+        >
+          <Icon icon="lucide:clapperboard" width={15} height={15} />
+        </button>
+
+        {films.length > 0 && body.length === 0 && (
+          <span
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
+              films.length >= MAX_COMMENT_MOVIES
+                ? "!text-ember font-semibold"
+                : "text-bone-dim/70"
+            }`}
+          >
+            {films.length}/{MAX_COMMENT_MOVIES}
+          </span>
+        )}
+
+        {body.length > 0 && (
+          <span
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
+              body.length >= MAX_COMMENT_LENGTH - 20
+                ? "!text-ember font-semibold"
+                : "text-bone-dim/70"
+            }`}
+          >
+            {body.length}/{MAX_COMMENT_LENGTH}
+          </span>
+        )}
+
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          aria-label="Send comment"
+          className="grid size-9 shrink-0 place-items-center rounded-lg border border-bone/10 bg-bone/10 text-bone transition-all hover:bg-bone/20 active:scale-95 disabled:opacity-40 !p-0 cursor-pointer"
+        >
+          <Icon icon="lucide:send" width={16} height={16} />
+        </button>
+      </form>
 
       {error && (
         <p role="alert" className="meta !text-ember text-xs">
           {error}
         </p>
       )}
-    </form>
+    </div>
   );
 }
