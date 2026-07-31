@@ -127,6 +127,7 @@ export default async function UsernamePage({ params }: PageProps) {
             viewerId={viewer?.id ?? null}
             isOwner={isOwner}
             name={name}
+            username={profile.username}
           />
         </Suspense>
 
@@ -180,12 +181,14 @@ function PostsSection({
   entries,
   isOwner,
   name,
+  username,
   viewerId,
   followingIds = [],
 }: {
   entries: FeedEntry[];
   isOwner: boolean;
   name: string;
+  username: string;
   viewerId: string | null;
   followingIds?: string[];
 }) {
@@ -200,12 +203,12 @@ function PostsSection({
           {isOwner ? "Your latest post" : `Latest post by ${name}`}
         </h2>
         {entries.length > 0 && (
-          <button
-            type="button"
+          <Link
+            href={`/${username}/posts`}
             className="text-sm font-medium text-bone-soft transition-colors hover:text-bone"
           >
             View all
-          </button>
+          </Link>
         )}
       </div>
 
@@ -362,11 +365,13 @@ async function ProfilePosts({
   viewerId,
   isOwner,
   name,
+  username,
 }: {
   profileId: string;
   viewerId: string | null;
   isOwner: boolean;
   name: string;
+  username: string;
 }) {
   const supabase = await createServerSupabase();
   const [entries, followingSet] = await Promise.all([
@@ -379,6 +384,7 @@ async function ProfilePosts({
       entries={entries}
       isOwner={isOwner}
       name={name}
+      username={username}
       viewerId={viewerId}
       followingIds={[...followingSet]}
     />
