@@ -183,12 +183,20 @@ export function PostCard({
           <header className="flex items-start justify-between gap-2 min-w-0">
             <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
               <div className="flex items-center gap-x-1.5 sm:gap-x-2 flex-wrap min-w-0">
-                <span className="truncate text-xs sm:text-sm font-semibold text-bone">
+                <Link
+                  href={`/${post.author.username}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="truncate text-xs sm:text-sm font-semibold text-bone hover:underline"
+                >
                   {displayNameFor(post.author.display_name, post.author.username)}
-                </span>
-                <span className="meta truncate !text-[0.6875rem] sm:!text-xs text-bone-dim">
+                </Link>
+                <Link
+                  href={`/${post.author.username}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="meta truncate !text-[0.6875rem] sm:!text-xs text-bone-dim hover:underline"
+                >
                   @{post.author.username}
-                </span>
+                </Link>
 
                 {!isOwner && (
                   <>
