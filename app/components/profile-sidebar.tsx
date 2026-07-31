@@ -84,12 +84,14 @@ export function ProfileSidebar({
           <Avatar url={avatarUrl} initials={initials} size={296} className="w-full h-full text-4xl" />
         </Link>
         <div className="mt-4">
-          <h1 className="text-xl font-bold text-bone leading-tight">
-            {displayName}
-          </h1>
-          {username && (
-            <p className="text-sm text-bone-soft font-normal mt-0.5">@{username}</p>
-          )}
+          <Link href={overviewHref} className="group block">
+            <h1 className="text-xl font-bold text-bone leading-tight group-hover:underline">
+              {displayName}
+            </h1>
+            {username && (
+              <p className="text-sm text-bone-soft font-normal mt-0.5">@{username}</p>
+            )}
+          </Link>
         </div>
       </div>
 
