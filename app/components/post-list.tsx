@@ -21,7 +21,7 @@ export function PostList({
   followingIds?: string[];
 }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col space-y-6">
       {entries.map((entry) => (
         <PostCard key={entry.key} entry={entry} viewerId={viewerId} followingIds={followingIds} />
       ))}

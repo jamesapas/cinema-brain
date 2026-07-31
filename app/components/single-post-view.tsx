@@ -162,8 +162,8 @@ export function SinglePostView({
                   size={52}
                 />
               </Link>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
+              <div className="min-w-0 space-y-0.5 sm:space-y-1">
+                <div className="flex items-center gap-x-1.5 sm:gap-x-2 flex-wrap min-w-0">
                   <Link
                     href={`/${post.author.username}`}
                     className="truncate font-bold text-bone text-base sm:text-lg hover:underline"
@@ -172,16 +172,14 @@ export function SinglePostView({
                   </Link>
                   <Link
                     href={`/${post.author.username}`}
-                    className="meta truncate !text-xs text-bone-dim hover:underline"
+                    className="meta truncate !text-xs sm:!text-sm text-bone-dim hover:underline"
                   >
                     @{post.author.username}
                   </Link>
-                </div>
-                <p className="meta mt-0.5 !text-xs text-bone-dim flex items-center gap-1.5 flex-wrap">
-                  <TimeAgo iso={post.createdAt} />
+
                   {!isOwner && (
                     <>
-                      <span aria-hidden className="text-bone-dim/40 text-xs">
+                      <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">
                         ·
                       </span>
                       <FollowButton
@@ -196,7 +194,21 @@ export function SinglePostView({
                       />
                     </>
                   )}
-                </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 pt-0.5 meta !text-xs text-bone-dim">
+                  <TimeAgo iso={post.createdAt} />
+                  <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">
+                    ·
+                  </span>
+                  <Icon
+                    icon="material-symbols-light:public"
+                    width={15}
+                    height={15}
+                    className="shrink-0 text-bone-dim"
+                    aria-label="Public post"
+                  />
+                </div>
               </div>
             </div>
 

@@ -73,6 +73,8 @@ export function PostCard({
   const [removed, setRemoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const commentInputRef = useRef<HTMLInputElement>(null);
+
   const [, startTransition] = useTransition();
 
   const isOwner = viewerId !== null && viewerId === post.author.id;
@@ -142,7 +144,7 @@ export function PostCard({
     if (selection && selection.toString().length > 0) return;
 
     const target = event.target as HTMLElement;
-    if (target.closest("a, button, input, textarea, select, form, label, [role='button'], .comments-section")) return;
+    if (target.closest("button, input, textarea, select, form, label, [role='button']")) return;
 
     if (event.metaKey || event.ctrlKey) {
       window.open(`/post/${post.id}`, "_blank");
@@ -158,56 +160,71 @@ export function PostCard({
   return (
     <article
       onClick={handleCardClick}
-      className={`border-b border-ink-line py-5 ${!isSinglePostPage ? "cursor-pointer" : ""}`}
+      className={`border-b border-ink-line pb-6 pt-2 ${!isSinglePostPage ? "cursor-pointer" : ""}`}
     >
       {entry.repostedBy && <RepostLine by={entry.repostedBy} viewerId={viewerId} />}
 
-      <div className="flex gap-3.5">
-        <Link href={`/${post.author.username}`} className="shrink-0">
+      <div className="flex gap-3 sm:gap-4">
+        <Link
+          href={`/${post.author.username}`}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0"
+        >
           <Avatar
             url={avatarUrl(post.author.avatar_path)}
             initials={initialsFor(post.author.display_name, post.author.username)}
-            size={44}
+            size={40}
+            className="size-9 sm:size-[44px]"
           />
         </Link>
 
         <div className="min-w-0 flex-1">
-          <header className="flex items-center gap-x-1.5 flex-wrap min-w-0">
-            <Link
-              href={`/${post.author.username}`}
-              className="truncate font-semibold text-bone hover:underline"
-            >
-              {displayNameFor(post.author.display_name, post.author.username)}
-            </Link>
-            <Link href={`/${post.author.username}`} className="meta truncate !text-xs text-bone-dim hover:underline">
-              @{post.author.username}
-            </Link>
-            <span aria-hidden className="text-bone-dim/40 text-xs">
-              ·
-            </span>
-            <Link href={`/post/${post.id}`} className="meta !text-xs hover:text-bone">
-              <TimeAgo iso={post.createdAt} />
-            </Link>
+          <header className="flex items-start justify-between gap-2 min-w-0">
+            <div className="min-w-0 flex-1 space-y-0.5 sm:space-y-1">
+              <div className="flex items-center gap-x-1.5 sm:gap-x-2 flex-wrap min-w-0">
+                <span className="truncate text-xs sm:text-sm font-semibold text-bone">
+                  {displayNameFor(post.author.display_name, post.author.username)}
+                </span>
+                <span className="meta truncate !text-[0.6875rem] sm:!text-xs text-bone-dim">
+                  @{post.author.username}
+                </span>
 
-            {!isOwner && (
-              <>
-                <span aria-hidden className="text-bone-dim/40 text-xs">
+                {!isOwner && (
+                  <>
+                    <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">
+                      ·
+                    </span>
+                    <FollowButton
+                      targetId={post.author.id}
+                      targetUsername={post.author.username}
+                      initialFollowing={isFollowing}
+                      className={(active) =>
+                        `text-[0.6875rem] sm:text-xs font-semibold transition-colors cursor-pointer bg-transparent border-none p-0 h-auto ${active ? "text-bone-dim hover:text-bone" : "text-lamp hover:underline"
+                        }`
+                      }
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 pt-0.5 meta !text-[0.6875rem] sm:!text-xs text-bone-dim">
+                <Link href={`/post/${post.id}`} className="hover:text-bone transition-colors">
+                  <TimeAgo iso={post.createdAt} />
+                </Link>
+                <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">
                   ·
                 </span>
-                <FollowButton
-                  targetId={post.author.id}
-                  targetUsername={post.author.username}
-                  initialFollowing={isFollowing}
-                  className={(active) =>
-                    `text-xs font-semibold transition-colors cursor-pointer bg-transparent border-none p-0 h-auto ${
-                      active ? "text-bone-dim hover:text-bone" : "text-lamp hover:underline"
-                    }`
-                  }
+                <Icon
+                  icon="material-symbols-light:public"
+                  width={14}
+                  height={14}
+                  className="shrink-0 text-bone-dim sm:w-[15px] sm:h-[15px]"
+                  aria-label="Public post"
                 />
-              </>
-            )}
+              </div>
+            </div>
 
-            <div className="ml-auto flex items-center gap-2 shrink-0">
+            <div className="shrink-0">
               <PostOptionsControl
                 post={post}
                 isOwner={isOwner}
@@ -217,14 +234,14 @@ export function PostCard({
           </header>
 
           {post.body.trim().length > 0 && (
-            <p className="mt-1.5 leading-relaxed break-words whitespace-pre-wrap text-bone">
+            <p className="mt-2 sm:mt-3 leading-relaxed break-words whitespace-pre-wrap text-bone text-xs sm:text-sm">
               {post.body}
             </p>
           )}
 
           <PostMovies movies={post.movies} />
 
-          <div className="mt-3 flex items-center gap-1">
+          <div className="mt-4 pt-1 flex items-center gap-1.5">
             <ActionButton
               icon="lucide:heart"
               filled={liked}
@@ -244,7 +261,13 @@ export function PostCard({
               count={commentCount}
               label={commentCount > 0 ? `${commentCount} ${commentCount === 1 ? "Comment" : "Comments"}` : "Comment"}
               tone="text-bone"
-              onClick={handleLoadMore}
+              onClick={() => {
+                if (!signedIn) {
+                  signIn("To comment on this post");
+                } else {
+                  commentInputRef.current?.focus();
+                }
+              }}
             />
 
             <ActionButton
@@ -267,10 +290,7 @@ export function PostCard({
           </div>
 
           {/* Comments list & input box section (always visible) */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="comments-section mt-3.5 space-y-3 border-l-2 border-ink-line pl-3.5 pt-1 cursor-default"
-          >
+          <div className="comments-section mt-3.5 space-y-3 border-l-2 border-ink-line pl-3.5 pt-1">
             {commentCount > 0 && (
               <div className="space-y-2.5">
                 {loadingComments && comments === null ? (
@@ -317,6 +337,7 @@ export function PostCard({
             {/* Comment input box always shown */}
             <CommentComposer
               postId={post.id}
+              inputRef={commentInputRef}
               onAdded={(newComment) => {
                 setComments((current) => [newComment, ...(current ?? [])]);
                 setCommentCount((current) => current + 1);
@@ -430,11 +451,10 @@ export function ActionButton({
       aria-label={label}
       aria-pressed={expanded === undefined ? filled : undefined}
       aria-expanded={expanded}
-      className={`group flex items-center gap-1.5 rounded-full py-1.5 px-3 text-xs sm:text-sm font-medium transition-all ${
-        filled
-          ? `${tone} bg-bone/8`
-          : "text-bone-dim hover:text-bone hover:bg-bone/8"
-      }`}
+      className={`group flex items-center gap-1.5 rounded-full py-1.5 px-3 text-xs sm:text-sm font-medium transition-all ${filled
+        ? `${tone} bg-bone/8`
+        : "text-bone-dim hover:text-bone hover:bg-bone/8"
+        }`}
     >
       <Icon
         icon={icon}
@@ -872,11 +892,10 @@ export function ShareControl({
           setOpen(!open);
         }}
         aria-label="Share post"
-        className={`group flex items-center gap-1.5 rounded-full py-1.5 px-3 text-xs sm:text-sm font-medium transition-all ${
-          open
-            ? "text-bone bg-bone/8"
-            : "text-bone-dim hover:text-bone hover:bg-bone/8"
-        }`}
+        className={`group flex items-center gap-1.5 rounded-full py-1.5 px-3 text-xs sm:text-sm font-medium transition-all ${open
+          ? "text-bone bg-bone/8"
+          : "text-bone-dim hover:text-bone hover:bg-bone/8"
+          }`}
       >
         <Icon
           icon="lucide:share-2"
@@ -1112,6 +1131,7 @@ export function CommentRow({
           url={avatarUrl(comment.author.avatar_path)}
           initials={initialsFor(comment.author.display_name, comment.author.username)}
           size={28}
+          className="size-6 sm:size-7"
         />
       </Link>
 
@@ -1129,21 +1149,20 @@ export function CommentRow({
           >
             @{comment.author.username}
           </Link>
-          <span aria-hidden className="text-bone-dim/40 text-xs">·</span>
+          <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">·</span>
           <span className="meta !text-xs text-bone-dim">
             <TimeAgo iso={comment.createdAt} />
           </span>
 
           {!isCommentOwner && (
             <>
-              <span aria-hidden className="text-bone-dim/40 text-xs">·</span>
+              <span aria-hidden className="text-bone-soft text-xs font-bold px-0.5">·</span>
               <FollowButton
                 targetId={comment.author.id}
                 targetUsername={comment.author.username}
                 initialFollowing={isFollowingAuthor}
                 className={(active) =>
-                  `!text-xs font-medium transition-colors cursor-pointer bg-transparent border-none !p-0 !h-auto ${
-                    active ? "text-bone-dim hover:text-bone" : "text-bone-soft hover:text-bone"
+                  `!text-xs font-medium transition-colors cursor-pointer bg-transparent border-none !p-0 !h-auto ${active ? "text-bone-dim hover:text-bone" : "text-bone-soft hover:text-bone"
                   }`
                 }
               />
@@ -1180,9 +1199,11 @@ export function CommentRow({
 export function CommentComposer({
   postId,
   onAdded,
+  inputRef,
 }: {
   postId: string;
   onAdded: (comment: PostComment) => void;
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   const signedIn = useSignedIn();
   const signIn = useSignIn();
@@ -1193,7 +1214,8 @@ export function CommentComposer({
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const localInputRef = useRef<HTMLInputElement>(null);
+  const activeInputRef = inputRef ?? localInputRef;
 
   if (!signedIn) {
     return (
@@ -1224,7 +1246,7 @@ export function CommentComposer({
         setBody("");
         setFilms([]);
         setPicking(false);
-        inputRef.current?.focus();
+        activeInputRef.current?.focus();
       } else {
         setError(result.error);
       }
@@ -1250,11 +1272,10 @@ export function CommentComposer({
             ))}
           </ul>
           <span
-            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
-              films.length >= MAX_COMMENT_MOVIES
-                ? "!text-ember font-semibold"
-                : "text-bone-dim/70"
-            }`}
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${films.length >= MAX_COMMENT_MOVIES
+              ? "!text-ember font-semibold"
+              : "text-bone-dim/70"
+              }`}
           >
             {films.length}/{MAX_COMMENT_MOVIES} films
           </span>
@@ -1284,7 +1305,7 @@ export function CommentComposer({
           className="shrink-0"
         />
         <input
-          ref={inputRef}
+          ref={activeInputRef}
           type="text"
           value={body}
           onChange={(event) => setBody(event.target.value)}
@@ -1311,11 +1332,10 @@ export function CommentComposer({
 
         {films.length > 0 && body.length === 0 && (
           <span
-            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
-              films.length >= MAX_COMMENT_MOVIES
-                ? "!text-ember font-semibold"
-                : "text-bone-dim/70"
-            }`}
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${films.length >= MAX_COMMENT_MOVIES
+              ? "!text-ember font-semibold"
+              : "text-bone-dim/70"
+              }`}
           >
             {films.length}/{MAX_COMMENT_MOVIES}
           </span>
@@ -1323,11 +1343,10 @@ export function CommentComposer({
 
         {body.length > 0 && (
           <span
-            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${
-              body.length >= MAX_COMMENT_LENGTH - 20
-                ? "!text-ember font-semibold"
-                : "text-bone-dim/70"
-            }`}
+            className={`meta tabular-nums text-[0.6875rem] shrink-0 ${body.length >= MAX_COMMENT_LENGTH - 20
+              ? "!text-ember font-semibold"
+              : "text-bone-dim/70"
+              }`}
           >
             {body.length}/{MAX_COMMENT_LENGTH}
           </span>

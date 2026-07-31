@@ -18,14 +18,15 @@ export function Avatar({
   size?: number;
   className?: string;
 }) {
-  const style = { width: size, height: size };
+  const hasCustomDimensions = /\b(w-|h-|size-)/.test(className);
+  const style = hasCustomDimensions ? undefined : { width: size, height: size };
 
   if (!url) {
     return (
       <span
-        style={{ ...style, fontSize: Math.max(11, Math.round(size * 0.38)) }}
+        style={{ ...style, fontSize: hasCustomDimensions ? undefined : Math.max(11, Math.round(size * 0.38)) }}
         aria-hidden="true"
-        className={`grid shrink-0 place-items-center rounded-full bg-lamp/20 font-semibold text-lamp ring-1 ring-lamp/30 ${className}`}
+        className={`inline-flex shrink-0 items-center justify-center text-center leading-none rounded-full bg-lamp/20 font-semibold text-lamp ring-1 ring-lamp/30 text-xs sm:text-sm ${className}`}
       >
         {initials}
       </span>
